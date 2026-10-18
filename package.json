@@ -15,12 +15,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "build": "npm run build --workspaces --if-present"
   },
   "devDependencies": {
     "@types/node": "24.13.6",
     "prettier": "3.9.8",
     "typescript": "7.0.2",
+    "vite": "8.3.0",
     "vitest": "5.0.1"
   }
 }
