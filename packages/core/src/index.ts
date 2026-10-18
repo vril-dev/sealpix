@@ -31,3 +31,14 @@ export {
   type SealInput,
   type SealedFile,
 } from './jwe.ts'
+export {
+  matchesPolicy,
+  regionsFor,
+  validatePolicy,
+  validateTemplate,
+  type Policy,
+  type PolicyDocument,
+  type PolicyMode,
+  type Template,
+  type TemplateField,
+} from './template.ts'

@@ -1,0 +1,12 @@
+{
+  "id": "example",
+  "padding": 10,
+  "documents": [
+    {
+      "template": "jp-driver-license-front",
+      "mode": "hide",
+      "fields": ["name", "birth", "address", "issue", "conditions", "number", "acquired", "photo"]
+    },
+    { "template": "jp-driver-license-back", "mode": "hide-all" }
+  ]
+}
