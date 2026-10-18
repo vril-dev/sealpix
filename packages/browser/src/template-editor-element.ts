@@ -2,6 +2,7 @@ import {
   validateTemplate,
   withLimits,
   type Box,
+  type Point,
   type Template,
   type TemplateField,
 } from '@sealpix/core'
@@ -14,6 +15,12 @@ const PHOTO_MAX_SIDE = 2000
 const HANDLE_HIT_RADIUS = 14
 // これより小さい範囲は、クリックの誤操作とみなして作らない
 const MIN_SIZE = 4
+// 新しく作るテンプレートでは、長い辺をこの大きさにそろえる
+const LONG_SIDE = 1000
+// ID-1 サイズのカード（85.6mm × 54mm）を補正した後の大きさ
+const ID1_SIZE = { width: 856, height: 540 }
+// 縦横比の差がこの割合までなら、同じ縦横比とみなす
+const ASPECT_TOLERANCE = 0.08
 
 type Drag =
   | { kind: 'create'; index: number; startX: number; startY: number }
@@ -44,6 +51,29 @@ function clampBox([x, y, w, h]: Box, width: number, height: number): Box {
   const x1 = Math.round(Math.min(Math.max(Math.max(x, x + w), 0), width))
   const y1 = Math.round(Math.min(Math.max(Math.max(y, y + h), 0), height))
   return [x0, y0, x1 - x0, y1 - y0]
+}
+
+// 縦横比を保ったまま、長い辺を LONG_SIDE にそろえる
+function fitSize(width: number, height: number): { width: number; height: number } {
+  const scale = LONG_SIDE / Math.max(width, height)
+  return { width: Math.round(width * scale), height: Math.round(height * scale) }
+}
+
+function similarAspect(a: number, b: number): boolean {
+  return Math.abs(a / b - 1) <= ASPECT_TOLERANCE
+}
+
+// 四隅の位置から、補正した後の縦横比を見積もる。カードに近ければ ID-1 サイズにする
+function sizeFromCorners(points: Point[]): { width: number; height: number } {
+  const [tl, tr, br, bl] = points
+  const width =
+    (Math.hypot(tr[0] - tl[0], tr[1] - tl[1]) + Math.hypot(br[0] - bl[0], br[1] - bl[1])) / 2
+  const height =
+    (Math.hypot(bl[0] - tl[0], bl[1] - tl[1]) + Math.hypot(br[0] - tr[0], br[1] - tr[1])) / 2
+  const id1 = ID1_SIZE.width / ID1_SIZE.height
+  if (similarAspect(width / height, id1)) return { ...ID1_SIZE }
+  if (similarAspect(height / width, id1)) return { width: ID1_SIZE.height, height: ID1_SIZE.width }
+  return fitSize(width, height)
 }
 
 function corners([x, y, w, h]: Box): [number, number][] {
@@ -216,7 +246,10 @@ export class SealpixTemplateEditorElement extends HTMLElement {
     this.#photo = photo
     this.#adjustCanvas.hidden = false
     this.#adjuster.start(photo, defaultCorners(photo.width, photo.height))
-    const useAsIs: [string, () => void] = ['補正せずに使う', () => this.#useImage(photo)]
+    const useAsIs: [string, () => void] = [
+      '補正せずに使う',
+      () => this.#useImage(photo, fitSize(photo.width, photo.height)),
+    ]
     this.#setImageActions([useAsIs])
     this.#setMessage('書類の四隅を検出しています…')
 
@@ -238,16 +271,29 @@ export class SealpixTemplateEditorElement extends HTMLElement {
       [
         'この位置で補正する',
         () => {
-          const { width, height } = this.#cardSize()
-          this.#useImage(warpToRect(photo, this.#adjuster.corners!, width, height))
+          const points = this.#adjuster.corners!
+          const size = this.#sizeForNewImage(sizeFromCorners(points))
+          this.#useImage(warpToRect(photo, points, size.width, size.height), size)
         },
       ],
       useAsIs,
     ])
   }
 
-  #useImage(source: HTMLCanvasElement): void {
-    const { width, height } = this.#cardSize()
+  // 範囲がまだなければ、幅と高さを画像に合わせる。範囲があれば、今の幅と高さを保つ
+  #sizeForNewImage(suggested: { width: number; height: number }): {
+    width: number
+    height: number
+  } {
+    if (this.#fields.length > 0) return this.#cardSize()
+    this.#meta.width.value = String(suggested.width)
+    this.#meta.height.value = String(suggested.height)
+    return suggested
+  }
+
+  // suggested は、画像に合う幅と高さ
+  #useImage(source: HTMLCanvasElement, suggested: { width: number; height: number }): void {
+    const { width, height } = this.#sizeForNewImage(suggested)
     this.#card = newCanvas(width, height)
     this.#card.getContext('2d')!.drawImage(source, 0, 0, width, height)
     this.#photo = null
@@ -255,7 +301,13 @@ export class SealpixTemplateEditorElement extends HTMLElement {
     this.#adjustCanvas.hidden = true
     this.#adjustCanvas.width = 0
     this.#setImageActions([])
-    this.#setMessage('')
+    this.#editCanvas.width = width
+    this.#editCanvas.height = height
+    this.#setMessage(
+      this.#fields.length > 0 && !similarAspect(width / height, suggested.width / suggested.height)
+        ? '画像の縦横比が、テンプレートの幅と高さと違うため、画像を引き伸ばして表示しています。'
+        : `幅と高さは ${width} × ${height} です。`,
+    )
     this.#render()
   }
 
