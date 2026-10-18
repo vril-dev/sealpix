@@ -9,6 +9,7 @@ import {
   type Policy,
   type Template,
 } from '@sealpix/core'
+import { CornerAdjuster, defaultCorners } from './corner-adjuster.ts'
 import { detectCorners, fileToCanvas, newCanvas, warpToRect } from './geometry.ts'
 import { DEFAULT_OPENCV_INTEGRITY, DEFAULT_OPENCV_SRC, loadOpenCv } from './opencv.ts'
 import { paintRegions, sealTemplate, sealWhole, type SealResult } from './seal-image.ts'
@@ -16,8 +17,6 @@ import { paintRegions, sealTemplate, sealWhole, type SealResult } from './seal-i
 // 書類の写真は、長い辺をこの大きさまで縮めてから扱う
 const PHOTO_MAX_SIDE = 2000
 const DEFAULT_WHOLE_MAX_SIDE = 2000
-// 四隅の丸をつかめる距離（画面上のピクセル）
-const HANDLE_HIT_RADIUS = 28
 const WHOLE = 'whole'
 
 interface DocumentOption {
@@ -32,6 +31,7 @@ export interface CaptureCompleteDetail extends SealResult {
 }
 
 const STYLE = `
+  [hidden] { display: none !important; }
   :host { display: block; font: inherit; color: inherit; }
   .message { min-height: 1.5em; margin: 0 0 12px; }
   .message.error { color: #c62828; }
@@ -65,8 +65,8 @@ export class SealpixCaptureElement extends HTMLElement {
   #options: DocumentOption[] = []
   #photo: HTMLCanvasElement | null = null
   #corners: Point[] | null = null
+  readonly #adjuster: CornerAdjuster
   #ready: HTMLCanvasElement | null = null
-  #drag = -1
   #initialized = false
   // 公開鍵・ポリシー・テンプレートをすべて読み込めたら true
   #loaded = false
@@ -101,10 +101,7 @@ export class SealpixCaptureElement extends HTMLElement {
       this.#fileInput.value = ''
       if (file) this.#run(() => this.#onFile(file))
     })
-    this.#canvas.addEventListener('pointerdown', (e) => this.#onPointerDown(e))
-    this.#canvas.addEventListener('pointermove', (e) => this.#onPointerMove(e))
-    this.#canvas.addEventListener('pointerup', () => (this.#drag = -1))
-    this.#canvas.addEventListener('pointercancel', () => (this.#drag = -1))
+    this.#adjuster = new CornerAdjuster(this.#canvas)
   }
 
   connectedCallback(): void {
@@ -203,14 +200,7 @@ export class SealpixCaptureElement extends HTMLElement {
     this.#setMessage('書類の四隅を検出しています…')
     await this.#loadOpenCv()
     const found = detectCorners(this.#photo)
-    const { width: w, height: h } = this.#photo
-    this.#corners = found ?? [
-      [w * 0.15, h * 0.15],
-      [w * 0.85, h * 0.15],
-      [w * 0.85, h * 0.85],
-      [w * 0.15, h * 0.85],
-    ]
-    this.#drawPhoto()
+    this.#startAdjusting(found ?? defaultCorners(this.#photo.width, this.#photo.height))
     this.#setMessage(
       found
         ? '丸が書類の四隅に合っているか確認してください。ずれていれば、丸を動かして合わせてください。'
@@ -224,6 +214,8 @@ export class SealpixCaptureElement extends HTMLElement {
 
   async #rectify(template: Template): Promise<void> {
     const { width, height } = template.card
+    this.#corners = this.#adjuster.corners
+    this.#adjuster.stop()
     this.#ready = warpToRect(this.#photo!, this.#corners!, width, height)
     const preview = newCanvas(width, height)
     preview.getContext('2d')!.drawImage(this.#ready, 0, 0)
@@ -238,7 +230,7 @@ export class SealpixCaptureElement extends HTMLElement {
         '四隅を調整し直す',
         () => {
           this.#ready = null
-          this.#drawPhoto()
+          this.#startAdjusting(this.#corners!)
           this.#setActions([
             ['この位置で補正する', () => this.#run(() => this.#rectify(template)), true],
             ['写真を選び直す', () => this.#restart()],
@@ -280,7 +272,7 @@ export class SealpixCaptureElement extends HTMLElement {
     this.#photo = null
     this.#corners = null
     this.#ready = null
-    this.#drag = -1
+    this.#adjuster.stop()
     this.#canvas.width = 0
     this.#canvas.height = 0
   }
@@ -293,58 +285,10 @@ export class SealpixCaptureElement extends HTMLElement {
     this.#choose.hidden = true
   }
 
-  #drawPhoto(): void {
-    const photo = this.#photo!
-    this.#show(photo)
-    const g = this.#canvas.getContext('2d')!
-    const unit = Math.max(2, photo.width / 400)
-    g.lineWidth = unit * 1.5
-    g.strokeStyle = '#00b8d4'
-    g.beginPath()
-    this.#corners!.forEach(([x, y], i) => (i === 0 ? g.moveTo(x, y) : g.lineTo(x, y)))
-    g.closePath()
-    g.stroke()
-    for (const [x, y] of this.#corners!) {
-      g.fillStyle = 'rgba(0, 184, 212, 0.35)'
-      g.beginPath()
-      g.arc(x, y, unit * 8, 0, Math.PI * 2)
-      g.fill()
-      g.stroke()
-    }
-  }
-
-  #toPhotoPoint(e: PointerEvent): [number, number, number] {
-    const rect = this.#canvas.getBoundingClientRect()
-    const scale = this.#canvas.width / rect.width
-    return [(e.clientX - rect.left) * scale, (e.clientY - rect.top) * scale, scale]
-  }
-
-  #onPointerDown(e: PointerEvent): void {
-    if (this.#corners === null || this.#ready !== null) return
-    const [x, y, scale] = this.#toPhotoPoint(e)
-    let nearest = HANDLE_HIT_RADIUS * scale
-    this.#drag = -1
-    this.#corners.forEach(([cx, cy], i) => {
-      const d = Math.hypot(cx - x, cy - y)
-      if (d < nearest) {
-        nearest = d
-        this.#drag = i
-      }
-    })
-    if (this.#drag >= 0) {
-      this.#canvas.setPointerCapture(e.pointerId)
-      e.preventDefault()
-    }
-  }
-
-  #onPointerMove(e: PointerEvent): void {
-    if (this.#drag < 0 || this.#corners === null || this.#photo === null) return
-    const [x, y] = this.#toPhotoPoint(e)
-    this.#corners[this.#drag] = [
-      Math.min(Math.max(x, 0), this.#photo.width),
-      Math.min(Math.max(y, 0), this.#photo.height),
-    ]
-    this.#drawPhoto()
+  #startAdjusting(corners: Point[]): void {
+    this.#canvas.hidden = false
+    this.#choose.hidden = true
+    this.#adjuster.start(this.#photo!, corners)
   }
 
   #setMessage(text: string, isError = false): void {
