@@ -269,7 +269,11 @@ export class SealpixTemplateEditorElement extends HTMLElement {
     this.#fields = template.fields
     this.#selected = -1
     this.#resizeCard()
-    this.#setMessage(`${template.label} を読み込みました。`)
+    this.#setMessage(
+      this.#card === null
+        ? `${template.label} を読み込みました。範囲の位置を確かめるには、「見本画像を選ぶ」で書類の画像を読み込んでください。`
+        : `${template.label} を読み込みました。`,
+    )
   }
 
   #buildTemplate(): Template {
@@ -309,7 +313,15 @@ export class SealpixTemplateEditorElement extends HTMLElement {
     const { width, height } = this.#editCanvas
     g.fillStyle = '#f0f0f0'
     g.fillRect(0, 0, width, height)
-    if (this.#card !== null) g.drawImage(this.#card, 0, 0)
+    if (this.#card !== null) {
+      g.drawImage(this.#card, 0, 0)
+    } else {
+      g.fillStyle = '#888'
+      g.font = '20px sans-serif'
+      g.textAlign = 'center'
+      g.fillText('見本画像を読み込むと、ここに表示されます', width / 2, height / 2)
+      g.textAlign = 'start'
+    }
     g.font = '14px sans-serif'
     this.#fields.forEach((field, i) => {
       const [x, y, w, h] = field.rect
