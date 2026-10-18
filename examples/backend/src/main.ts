@@ -27,6 +27,8 @@ const CONTENT_TYPES: Record<string, string> = {
   '.json': 'application/json; charset=utf-8',
 }
 
+class TooLargeError extends Error {}
+
 function required(name: string): string {
   const value = process.env[name]
   if (!value) {
@@ -61,7 +63,7 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   let total = 0
   for await (const chunk of req) {
     total += (chunk as Buffer).length
-    if (total > MAX_BODY_BYTES) throw new Error('too_large')
+    if (total > MAX_BODY_BYTES) throw new TooLargeError()
     chunks.push(chunk as Buffer)
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
@@ -157,6 +159,11 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
 createServer((req, res) => {
   handle(req, res).catch((error: unknown) => {
+    if (error instanceof TooLargeError) {
+      res.setHeader('connection', 'close')
+      if (!res.headersSent) send(res, 413, { error: 'too_large' })
+      return
+    }
     console.error(error)
     if (!res.headersSent) send(res, 500, { error: 'internal_error' })
   })

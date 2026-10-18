@@ -14,5 +14,5 @@
     "noUnusedParameters": true,
     "types": ["node"]
   },
-  "include": ["packages/*/src", "packages/*/test", "examples/*.ts", "examples/*/src"]
+  "include": ["packages/*/src", "packages/*/test", "examples/*.ts", "examples/*/src", "e2e"]
 }
