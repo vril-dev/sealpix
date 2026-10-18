@@ -2,11 +2,11 @@ import { SealpixError } from './errors.ts'
 import type { Limits } from './limits.ts'
 
 export type Point = [number, number]
-// 左上の x, y と、幅、高さ
+// 左上の x 座標、y 座標、幅、高さ
 export type Box = [number, number, number, number]
 export type FillRule = 'nonzero' | 'evenodd'
 
-// 隠す範囲の形。evenodd では、外側の多角形の中に置いた多角形が穴になる。
+// 暗号化する範囲の形状。evenodd では、外側の多角形の内側に置いた多角形が穴になる。
 export interface RegionShape {
   id: string
   fillRule: FillRule
@@ -43,14 +43,14 @@ export function validateImageSize(value: unknown, limits: Limits): ImageSize {
     !isIntIn(value.width, 1, limits.maxImageSide) ||
     !isIntIn(value.height, 1, limits.maxImageSide)
   ) {
-    fail('画像の大きさが正しくありません')
+    fail('画像サイズが不正です')
   }
   return { width: value.width as number, height: value.height as number }
 }
 
 function validatePath(value: unknown, image: ImageSize, limits: Limits): Point[] {
   if (!Array.isArray(value) || value.length < 3 || value.length > limits.maxPointsPerPath) {
-    fail('多角形の頂点の数が正しくありません')
+    fail('多角形の頂点数が不正です')
   }
   return value.map((point): Point => {
     if (
@@ -65,24 +65,24 @@ function validatePath(value: unknown, image: ImageSize, limits: Limits): Point[]
   })
 }
 
-// 範囲の一覧を確かめ、知っている項目だけを写した新しい値を返す。
+// 範囲の一覧を検証し、既知の項目だけをコピーした新しい値を返す。
 export function validateRegions(value: unknown, image: ImageSize, limits: Limits): RegionShape[] {
   if (!Array.isArray(value) || value.length < 1 || value.length > limits.maxRegions) {
-    fail('範囲の数が正しくありません')
+    fail('範囲の数が不正です')
   }
   const ids = new Set<string>()
   return value.map((region): RegionShape => {
-    if (!isObject(region)) fail('範囲の形が正しくありません')
+    if (!isObject(region)) fail('範囲の形式が不正です')
     if (!isValidId(region.id, limits) || ids.has(region.id)) {
-      fail('範囲の ID が正しくないか、重なっています')
+      fail('範囲の ID が不正か、重複しています')
     }
     ids.add(region.id)
     if (typeof region.fillRule !== 'string' || !FILL_RULES.includes(region.fillRule)) {
-      fail('塗り方の指定が正しくありません')
+      fail('fillRule の値が不正です')
     }
     const paths = region.paths
     if (!Array.isArray(paths) || paths.length < 1 || paths.length > limits.maxPathsPerRegion) {
-      fail('多角形の数が正しくありません')
+      fail('多角形の数が不正です')
     }
     const shape: RegionShape = {
       id: region.id,
@@ -90,7 +90,7 @@ export function validateRegions(value: unknown, image: ImageSize, limits: Limits
       paths: paths.map((path) => validatePath(path, image, limits)),
     }
     const [, , w, h] = boundingBox(shape.paths)
-    if (w === 0 || h === 0) fail('範囲の幅か高さが 0 です')
+    if (w === 0 || h === 0) fail('範囲の幅または高さが 0 です')
     return shape
   })
 }

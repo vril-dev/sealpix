@@ -1,4 +1,4 @@
-// 失敗の種類。呼び出し側が HTTP の状態や画面の表示に対応付けられるよう、コードで持つ。
+// エラーの種類。呼び出し側で HTTP ステータスコードや画面表示に振り分けられるよう、コードで区別する。
 export type SealpixErrorCode =
   'too_large' | 'malformed' | 'unsupported' | 'invalid_region' | 'unknown_key' | 'decrypt_failed'
 

@@ -4,8 +4,8 @@ import { validateSealpixHeader, type SealpixHeader } from './header.ts'
 import { withLimits, type Limits } from './limits.ts'
 import { boundingBox, isBox, sameBox, type Box } from './regions.ts'
 
-// 暗号化ファイルは JWE（RFC 7516）の Flattened JSON Serialization。
-// 中身の鍵（CEK）は画像ごとに作り、公開鍵で包んで encrypted_key に入れる。
+// 暗号化ファイルの形式は JWE（RFC 7516）の Flattened JSON Serialization。
+// コンテンツ暗号化鍵（CEK）はファイルごとに生成し、公開鍵で暗号化して encrypted_key に格納する。
 const ALG = 'RSA-OAEP-256'
 const ENC = 'A256GCM'
 const MEMBERS = ['protected', 'encrypted_key', 'iv', 'ciphertext', 'tag'] as const
@@ -23,7 +23,7 @@ export interface SealedFile {
   tag: string
 }
 
-// 範囲ごとの元の画素。box は範囲を囲む四角形、png はその四角形の画像（範囲の外は透明）。
+// 範囲ごとの元画像。box は範囲の外接矩形、png はその矩形を切り出した画像（範囲外は透明）。
 export interface RegionImage {
   id: string
   box: Box
@@ -73,7 +73,7 @@ function decodeMember(
 ): Uint8Array<ArrayBuffer> {
   const bytes = decodeBase64url(value)
   if (bytes === null || bytes.length < min || bytes.length > max)
-    malformed(`${name} が正しくありません`)
+    malformed(`${name} の値が不正です`)
   return bytes
 }
 
@@ -84,10 +84,10 @@ function joinBytes(a: Uint8Array, b: Uint8Array): Uint8Array<ArrayBuffer> {
   return out
 }
 
-// 範囲ごとの画像が、ヘッダーの範囲と同じ順・同じ ID・同じ四角形かを確かめる。
+// 範囲ごとの画像が、ヘッダーの範囲と順番・ID・外接矩形まで一致するかを検証する。
 function checkImages(images: RegionImage[], header: SealpixHeader): void {
   if (images.length !== header.regions.length) {
-    throw new SealpixError('invalid_region', '画像の数が範囲の数と合いません')
+    throw new SealpixError('invalid_region', '画像の数が範囲の数と一致しません')
   }
   images.forEach((image, i) => {
     const region = header.regions[i]
@@ -96,14 +96,14 @@ function checkImages(images: RegionImage[], header: SealpixHeader): void {
       !isBox(image.box) ||
       !sameBox(image.box, boundingBox(region.paths))
     ) {
-      throw new SealpixError('invalid_region', '画像が範囲と合いません')
+      throw new SealpixError('invalid_region', '画像が範囲と一致しません')
     }
-    // 照合の画面で描く前に、画像の縦横が四角形と同じかを確かめておく
+    // 復号した画像を表示する前に、画像の幅と高さが外接矩形と一致するかを確認しておく
     const size = pngSize(image.png)
     if (size === null || size[0] !== image.box[2] || size[1] !== image.box[3]) {
       throw new SealpixError(
         'invalid_region',
-        '範囲の画像が PNG でないか、大きさが範囲と合いません',
+        '範囲の画像が PNG でないか、サイズが外接矩形と一致しません',
       )
     }
   })
@@ -120,17 +120,17 @@ function parse(fileText: unknown, limits: Limits): Parsed {
   } catch {
     malformed('暗号化ファイルが JSON ではありません')
   }
-  // 暗号化しない追加のヘッダー（header）や追加データ（aad）は受け付けない。
+  // 保護されないヘッダー（header）や追加認証データ（aad）は受け付けない。
   if (!isObject(file) || Object.keys(file).length !== MEMBERS.length) {
-    malformed('暗号化ファイルの項目が正しくありません')
+    malformed('暗号化ファイルのメンバーが不正です')
   }
   for (const m of MEMBERS) {
-    if (typeof file[m] !== 'string') malformed('暗号化ファイルの項目が正しくありません')
+    if (typeof file[m] !== 'string') malformed('暗号化ファイルのメンバーが不正です')
   }
   const sealed = file as unknown as SealedFile
 
   const headerBytes = decodeBase64url(sealed.protected)
-  if (headerBytes === null) malformed('protected が正しくありません')
+  if (headerBytes === null) malformed('protected の値が不正です')
   if (headerBytes.length > limits.maxHeaderBytes) {
     throw new SealpixError('too_large', 'protected ヘッダーが大きすぎます')
   }
@@ -141,15 +141,15 @@ function parse(fileText: unknown, limits: Limits): Parsed {
   } catch {
     protectedHeader = null
   }
-  if (!isObject(protectedHeader)) malformed('protected ヘッダーが正しくありません')
+  if (!isObject(protectedHeader)) malformed('protected ヘッダーが不正です')
   if (protectedHeader.alg !== ALG || protectedHeader.enc !== ENC) {
-    throw new SealpixError('unsupported', '対応していない暗号の方式です')
+    throw new SealpixError('unsupported', '対応していない暗号アルゴリズムです')
   }
   if (protectedHeader.crit !== undefined || protectedHeader.zip !== undefined) {
-    throw new SealpixError('unsupported', '対応していないヘッダーの項目があります')
+    throw new SealpixError('unsupported', '対応していないヘッダーパラメーターが含まれています')
   }
   if (typeof protectedHeader.kid !== 'string' || !KID_PATTERN.test(protectedHeader.kid)) {
-    malformed('kid が正しくありません')
+    malformed('kid が不正です')
   }
 
   return {
@@ -165,8 +165,8 @@ function parse(fileText: unknown, limits: Limits): Parsed {
   }
 }
 
-// 復号せずにヘッダーだけを読む。鍵がないので、ここで読んだ値は改ざんされていないとは限らない。
-// 改ざんされていれば、open で復号するときに失敗する。
+// 復号せずにヘッダーだけを読む。鍵を使わないため、改ざんされていないことは保証しない。
+// 改ざんされていれば、open での復号に失敗する。
 export function readHeader(fileText: unknown, limitOverrides?: Partial<Limits>): HeaderResult {
   const { kid, header } = parse(fileText, withLimits(limitOverrides))
   return { kid, header }
@@ -175,7 +175,7 @@ export function readHeader(fileText: unknown, limitOverrides?: Partial<Limits>):
 export async function seal(input: SealInput, limitOverrides?: Partial<Limits>): Promise<string> {
   const limits = withLimits(limitOverrides)
   const header = validateSealpixHeader(input.header, limits)
-  if (!KID_PATTERN.test(input.kid)) malformed('kid が正しくありません')
+  if (!KID_PATTERN.test(input.kid)) malformed('kid が不正です')
   checkImages(input.images, header)
 
   const headerBytes = utf8Encode(
@@ -238,7 +238,7 @@ export async function open(
 ): Promise<OpenResult> {
   const parsed = parse(fileText, withLimits(limitOverrides))
   const privateKey = await resolveKey(parsed.kid)
-  if (privateKey === undefined) throw new SealpixError('unknown_key', '知らない鍵の番号です')
+  if (privateKey === undefined) throw new SealpixError('unknown_key', '未登録の鍵 ID（kid）です')
 
   let payloadBytes: Uint8Array
   let cek: Uint8Array<ArrayBuffer> | undefined
@@ -246,7 +246,7 @@ export async function open(
     cek = new Uint8Array(
       await crypto.subtle.decrypt({ name: 'RSA-OAEP' }, privateKey, parsed.encryptedKey),
     )
-    if (cek.length !== CEK_BYTES) throw new Error('CEK の長さが違います')
+    if (cek.length !== CEK_BYTES) throw new Error('CEK の長さが不正です')
     const aesKey = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['decrypt'])
     payloadBytes = new Uint8Array(
       await crypto.subtle.decrypt(
@@ -261,7 +261,7 @@ export async function open(
       ),
     )
   } catch {
-    throw new SealpixError('decrypt_failed', '復号できませんでした')
+    throw new SealpixError('decrypt_failed', '復号に失敗しました')
   } finally {
     cek?.fill(0)
   }
@@ -273,10 +273,10 @@ export async function open(
   } catch {
     payload = null
   }
-  // 中身も利用者のブラウザが作ったものなので、ヘッダーと同じように疑って確かめる。
-  if (!isObject(payload) || !Array.isArray(payload.regions)) malformed('中身が正しくありません')
+  // ペイロードも利用者のブラウザで作られたものなので、ヘッダーと同様に検証する。
+  if (!isObject(payload) || !Array.isArray(payload.regions)) malformed('ペイロードが不正です')
   if (payload.regions.length !== parsed.header.regions.length) {
-    throw new SealpixError('invalid_region', '画像の数が範囲の数と合いません')
+    throw new SealpixError('invalid_region', '画像の数が範囲の数と一致しません')
   }
   const images = payload.regions.map((item: unknown): RegionImage => {
     if (
@@ -285,10 +285,10 @@ export async function open(
       !isBox(item.box) ||
       typeof item.png !== 'string'
     ) {
-      malformed('中身の範囲が正しくありません')
+      malformed('ペイロードの範囲が不正です')
     }
     const png = decodeBase64url(item.png)
-    if (png === null) malformed('中身の画像が正しくありません')
+    if (png === null) malformed('ペイロードの画像が不正です')
     return { id: item.id, box: item.box, png }
   })
   checkImages(images, parsed.header)

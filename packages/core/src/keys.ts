@@ -1,14 +1,14 @@
 import { decodeBase64url, encodeBase64url, utf8Encode } from './bytes.ts'
 import { SealpixError } from './errors.ts'
 
-// 鍵の組は RSA-OAEP（SHA-256、3072 ビット）。JOSE では RSA-OAEP-256 と呼ぶ。
+// 鍵ペアは RSA-OAEP（SHA-256、3072 ビット）。JOSE では RSA-OAEP-256 と呼ぶ。
 const ALGORITHM = { name: 'RSA-OAEP', hash: 'SHA-256' } as const
 const MODULUS_BITS = 3072
 const MIN_MODULUS_BITS = 3072
 const MAX_MODULUS_BITS = 8192
 const PRIVATE_MEMBERS = ['d', 'p', 'q', 'dp', 'dq', 'qi'] as const
 
-// ブラウザに配る公開鍵。kid は RFC 7638 の JWK Thumbprint。
+// ブラウザに配布する公開鍵。kid は RFC 7638 の JWK Thumbprint。
 export interface PublicJwk {
   kty: 'RSA'
   n: string
@@ -54,7 +54,7 @@ export function generateKeyPair(): Promise<CryptoKeyPair> {
   )
 }
 
-// RFC 7638: 必須の項目だけを辞書順に並べた JSON の SHA-256 を base64url にしたもの。
+// RFC 7638: 必須メンバーだけを辞書順に並べた JSON の SHA-256 ハッシュを base64url エンコードしたもの。
 export async function jwkThumbprint(jwk: { e: string; kty: string; n: string }): Promise<string> {
   const json = JSON.stringify({ e: jwk.e, kty: jwk.kty, n: jwk.n })
   return encodeBase64url(new Uint8Array(await crypto.subtle.digest('SHA-256', utf8Encode(json))))
@@ -88,19 +88,20 @@ export async function exportPrivateJwk(privateKey: CryptoKey): Promise<PrivateJw
   }
 }
 
-// 鍵の形と長さを確かめ、kid が書かれていれば中身と一致するかも確かめる。
+// 鍵の形式と長さを検証する。kid があれば、鍵の内容と一致するかも確認する。
 async function checkRsaJwk(value: unknown, members: readonly string[]): Promise<string> {
   if (!isObject(value) || value.kty !== 'RSA') unsupported('RSA の鍵ではありません')
-  if (value.alg !== undefined && value.alg !== 'RSA-OAEP-256') unsupported('鍵の方式が違います')
+  if (value.alg !== undefined && value.alg !== 'RSA-OAEP-256')
+    unsupported('鍵のアルゴリズムが RSA-OAEP-256 ではありません')
   for (const m of ['n', 'e', ...members]) {
     if (typeof value[m] !== 'string' || decodeBase64url(value[m] as string) === null) {
-      unsupported(`鍵の ${m} が正しくありません`)
+      unsupported(`鍵の ${m} が不正です`)
     }
   }
   const bits = decodeBase64url(value.n as string)!.length * 8
-  if (bits < MIN_MODULUS_BITS || bits > MAX_MODULUS_BITS) unsupported('鍵の長さが範囲外です')
+  if (bits < MIN_MODULUS_BITS || bits > MAX_MODULUS_BITS) unsupported('鍵長が対応範囲外です')
   const kid = await jwkThumbprint({ e: value.e as string, kty: 'RSA', n: value.n as string })
-  if (value.kid !== undefined && value.kid !== kid) unsupported('kid が鍵の中身と一致しません')
+  if (value.kid !== undefined && value.kid !== kid) unsupported('kid が鍵の内容と一致しません')
   return kid
 }
 
@@ -117,7 +118,7 @@ export async function importPublicJwk(value: unknown): Promise<ImportedKey> {
   return { key, kid }
 }
 
-// 取り込んだ秘密鍵は取り出せない設定にする。
+// インポートした秘密鍵はエクスポートできないようにする。
 export async function importPrivateJwk(value: unknown): Promise<ImportedKey> {
   const kid = await checkRsaJwk(value, PRIVATE_MEMBERS)
   const jwk = value as Record<string, string>

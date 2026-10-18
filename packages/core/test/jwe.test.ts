@@ -13,7 +13,7 @@ import {
   type SealpixHeader,
 } from '../src/index.ts'
 
-// 縦横を指定した PNG の先頭（署名と IHDR）。sealpix は先頭だけを読んで大きさを確かめる。
+// 幅と高さを指定した PNG の先頭部分（シグネチャと IHDR）。sealpix は先頭だけを読んでサイズを確認する。
 function png(width: number, height: number): Uint8Array {
   const bytes = new Uint8Array(33)
   bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52])
@@ -69,7 +69,7 @@ let kid: string
 
 beforeAll(async () => {
   const pair = await generateKeyPair()
-  // 配る形（JWK）に書き出して取り込み直したものを使う
+  // 配布用の JWK にエクスポートし、インポートし直した鍵を使う
   const pub = await importPublicJwk(await exportPublicJwk(pair.publicKey))
   const priv = await importPrivateJwk(await exportPrivateJwk(pair.privateKey))
   expect(priv.kid).toBe(pub.kid)
@@ -105,7 +105,7 @@ async function codeOf(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('暗号化ファイル', () => {
-  it('seal で作ったファイルを open で戻せる', async () => {
+  it('seal で暗号化したファイルを open で復号できる', async () => {
     const fileText = await seal({ publicKey, kid, header, images })
     expect(readHeader(fileText)).toEqual({ kid, header })
     const opened = await open(fileText, resolve)
@@ -117,7 +117,7 @@ describe('暗号化ファイル', () => {
     )
   })
 
-  it('protected ヘッダーや暗号文を書き換えると復号できない', async () => {
+  it('protected ヘッダーや暗号文を改ざんすると復号に失敗する', async () => {
     const fileText = await seal({ publicKey, kid, header, images })
     const movedRegion = rewriteProtected(fileText, (h) => {
       ;(h.sealpix as SealpixHeader).regions[0].paths[0][0] = [111, 82]
@@ -129,7 +129,7 @@ describe('暗号化ファイル', () => {
     expect(await codeOf(open(editedCiphertext, resolve))).toBe('decrypt_failed')
   })
 
-  it('知らない鍵の番号や対応しない方式は、復号の前に拒む', async () => {
+  it('未登録の kid や未対応のアルゴリズムは、復号前に拒否する', async () => {
     const fileText = await seal({ publicKey, kid, header, images })
     expect(await codeOf(open(fileText, () => undefined))).toBe('unknown_key')
 
@@ -141,7 +141,7 @@ describe('暗号化ファイル', () => {
     expect(resolver).not.toHaveBeenCalled()
   })
 
-  it('ファイルの長さは上限ちょうどなら通り、1文字超えると拒む', async () => {
+  it('ファイル長が上限ちょうどなら受け付け、1文字でも超えれば拒否する', async () => {
     const fileText = await seal({ publicKey, kid, header, images })
     expect(await codeOf(open(fileText, resolve, { maxFileLength: fileText.length }))).toBe('ok')
     expect(await codeOf(open(fileText, resolve, { maxFileLength: fileText.length - 1 }))).toBe(
@@ -149,7 +149,7 @@ describe('暗号化ファイル', () => {
     )
   })
 
-  it('画像の端までの範囲は通り、外にはみ出す範囲は暗号化の前に拒む', async () => {
+  it('画像の端までの範囲は受け付け、はみ出す範囲は暗号化前に拒否する', async () => {
     const edge = (x: number): SealpixHeader => ({
       ...header,
       regions: [
