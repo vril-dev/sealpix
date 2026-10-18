@@ -1,0 +1,13 @@
+{
+  "name": "@sealpix/browser",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "BSD-2-Clause",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@sealpix/core": "0.0.0"
+  }
+}
