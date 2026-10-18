@@ -1,6 +1,6 @@
 version: 2
 
-# 更新の提案は既定のブランチに出る。マージは手で行う。
+# Dependabot は main 宛てに更新のプルリクエストを作る。自動ではマージしないので、内容を確認してから手動でマージする。
 updates:
   - package-ecosystem: npm
     directory: /

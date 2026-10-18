@@ -10,21 +10,21 @@ import {
   type RegionShape,
 } from './regions.ts'
 
-// whole: 画像全体を暗号化する。template: 位置の型に従って一部を隠す。
+// whole: 画像全体を暗号化する。template: テンプレートに従って一部の範囲を暗号化する。
 export type Mode = 'whole' | 'template'
 
 export interface DocumentRef {
-  // 位置の型の ID（例: jp-driver-license-front）
+  // テンプレートの ID（例: jp-driver-license-front）
   template: string
   version: number
 }
 
-// protected ヘッダーの sealpix の項目。暗号化しないが、書き換えると復号できなくなる。
+// protected ヘッダーの sealpix パラメーター。暗号化はされないが、改ざんすると復号に失敗する。
 export interface SealpixHeader {
   v: 1
   mode: Mode
   document?: DocumentRef
-  // 隠し方の設定の ID
+  // ポリシーの ID
   policy?: string
   image: ImageSize
   regions: RegionShape[]
@@ -38,18 +38,18 @@ function malformed(message: string): never {
   throw new SealpixError('malformed', message)
 }
 
-// sealpix の項目を確かめ、知っている項目だけを写した新しい値を返す。
+// sealpix パラメーターを検証し、既知の項目だけをコピーした新しい値を返す。
 export function validateSealpixHeader(value: unknown, limits: Limits): SealpixHeader {
-  if (!isObject(value)) malformed('sealpix の項目がありません')
-  if (value.v !== 1) throw new SealpixError('unsupported', '対応していない形式の版です')
-  if (value.mode !== 'whole' && value.mode !== 'template') malformed('方式の指定が正しくありません')
+  if (!isObject(value)) malformed('sealpix パラメーターがありません')
+  if (value.v !== 1) throw new SealpixError('unsupported', '対応していない形式のバージョンです')
+  if (value.mode !== 'whole' && value.mode !== 'template') malformed('mode の値が不正です')
 
   const image = validateImageSize(value.image, limits)
   const regions = validateRegions(value.regions, image, limits)
   const header: SealpixHeader = { v: 1, mode: value.mode, image, regions }
 
   if (value.policy !== undefined) {
-    if (!isValidId(value.policy, limits)) malformed('隠し方の設定の ID が正しくありません')
+    if (!isValidId(value.policy, limits)) malformed('ポリシーの ID が不正です')
     header.policy = value.policy
   }
 
@@ -61,14 +61,17 @@ export function validateSealpixHeader(value: unknown, limits: Limits): SealpixHe
       !Number.isSafeInteger(doc.version) ||
       (doc.version as number) < 1
     ) {
-      malformed('位置の型の指定が正しくありません')
+      malformed('テンプレートの指定が不正です')
     }
     header.document = { template: doc.template as string, version: doc.version as number }
   } else {
-    if (value.document !== undefined) malformed('全部暗号化では位置の型を指定しません')
+    if (value.document !== undefined) malformed('whole モードではテンプレートを指定できません')
     const full = sameBox(boundingBox(regions[0].paths), [0, 0, image.width, image.height])
     if (regions.length !== 1 || !full) {
-      throw new SealpixError('invalid_region', '全部暗号化の範囲は画像全体の1つだけです')
+      throw new SealpixError(
+        'invalid_region',
+        'whole モードでは、画像全体を覆う範囲を1つだけ指定します',
+      )
     }
   }
   return header

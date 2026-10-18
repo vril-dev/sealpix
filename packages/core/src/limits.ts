@@ -1,19 +1,19 @@
-// 受け取るデータの上限。暗号化ファイルは利用者のブラウザで作られるので、
-// 中身を読む前に、ここで決めた大きさに収まっているかを確かめる。
+// 受け付けるデータの上限。暗号化ファイルは利用者のブラウザで作られるため、
+// 中身を読む前に、ここで決めたサイズに収まっているかを検証する。
 export interface Limits {
-  // 暗号化ファイル（JSON の文字列）の最大の文字数
+  // 暗号化ファイル（JSON 文字列）の最大文字数
   maxFileLength: number
-  // protected ヘッダー（base64url を戻した JSON）の最大のバイト数
+  // protected ヘッダー（base64url をデコードした JSON）の最大バイト数
   maxHeaderBytes: number
-  // 画像の縦横それぞれの最大の画素数
+  // 画像の幅・高さそれぞれの最大ピクセル数
   maxImageSide: number
-  // 隠す範囲の最大の数
+  // 暗号化する範囲の最大数
   maxRegions: number
-  // 1つの範囲に含める多角形の最大の数
+  // 1つの範囲に含める多角形の最大数
   maxPathsPerRegion: number
-  // 1つの多角形の最大の頂点の数
+  // 1つの多角形の最大頂点数
   maxPointsPerPath: number
-  // 範囲や型の ID の最大の文字数
+  // 範囲やテンプレートの ID の最大文字数
   maxIdLength: number
 }
 

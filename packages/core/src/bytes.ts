@@ -1,4 +1,4 @@
-// バイト列と文字列の変換。ブラウザと Node.js の両方にある機能だけを使う。
+// バイト列と文字列の変換。ブラウザと Node.js の両方で使える API だけを使う。
 
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]*$/
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
@@ -10,7 +10,7 @@ export function utf8Encode(text: string): Uint8Array<ArrayBuffer> {
   return encoder.encode(text)
 }
 
-// 正しい UTF-8 でなければ null を返す。
+// 不正な UTF-8 なら null を返す。
 export function utf8Decode(bytes: Uint8Array): string | null {
   try {
     return strictDecoder.decode(bytes)
@@ -27,7 +27,7 @@ export function encodeBase64url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-// 文字の種類と長さを確かめてから戻す。外れていれば null を返す。
+// 使える文字と長さを検証してからデコードする。不正なら null を返す。
 export function decodeBase64url(text: string): Uint8Array<ArrayBuffer> | null {
   if (!BASE64URL_PATTERN.test(text) || text.length % 4 === 1) return null
   const base64 = text.replace(/-/g, '+').replace(/_/g, '/')
@@ -37,8 +37,8 @@ export function decodeBase64url(text: string): Uint8Array<ArrayBuffer> | null {
   return out
 }
 
-// PNG の先頭（署名と IHDR）から縦横の画素数を読む。PNG でなければ null を返す。
-// 画像全体は読まないので、中身が壊れていないことまでは確かめない。
+// PNG の先頭（シグネチャと IHDR チャンク）から幅と高さを読む。PNG でなければ null を返す。
+// 画像全体はデコードしないので、データが壊れていないことまでは検証しない。
 export function pngSize(bytes: Uint8Array): [number, number] | null {
   const isIhdr =
     bytes[12] === 0x49 && bytes[13] === 0x48 && bytes[14] === 0x44 && bytes[15] === 0x52
