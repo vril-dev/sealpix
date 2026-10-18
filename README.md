@@ -76,6 +76,12 @@ npm test
 npm run typecheck
 ```
 
+結合テスト（Playwright）は次のコマンドで実行します。ビルドと3つのサーバーの起動は自動で行います。ポート 28080・28710・28711 を使い、OpenCV.js を jsDelivr から読み込むため、ネットワークへの接続が必要です。
+
+```bash
+npm run test:e2e
+```
+
 ## ライセンス
 
 BSD 2-Clause License です。詳しくは [LICENSE](LICENSE) を参照してください。
