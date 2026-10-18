@@ -1,0 +1,10 @@
+{
+  "name": "@sealpix/example-backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "BSD-2-Clause",
+  "scripts": {
+    "start": "node src/main.ts"
+  }
+}
