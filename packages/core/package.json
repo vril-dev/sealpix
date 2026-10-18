@@ -1,0 +1,10 @@
+{
+  "name": "@sealpix/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "BSD-2-Clause",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

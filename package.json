@@ -1,0 +1,26 @@
+{
+  "name": "sealpix",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "BSD-2-Clause",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24.15.0 <25",
+    "npm": ">=11 <12"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@types/node": "24.13.6",
+    "prettier": "3.9.8",
+    "typescript": "7.0.2",
+    "vitest": "5.0.1"
+  }
+}
