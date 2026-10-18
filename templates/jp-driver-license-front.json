@@ -1,0 +1,19 @@
+{
+  "id": "jp-driver-license-front",
+  "version": 1,
+  "label": "運転免許証（表）",
+  "card": { "width": 856, "height": 540 },
+  "fields": [
+    { "id": "name", "label": "氏名", "rect": [100, 34, 437, 40] },
+    { "id": "birth", "label": "生年月日", "rect": [538, 34, 286, 40] },
+    { "id": "address", "label": "住所", "rect": [100, 114, 724, 38] },
+    { "id": "issue", "label": "交付年月日・照会番号", "rect": [100, 152, 478, 37] },
+    { "id": "expiry", "label": "有効期限", "rect": [36, 190, 500, 47] },
+    { "id": "conditions", "label": "免許の条件等", "rect": [120, 243, 410, 50] },
+    { "id": "number", "label": "免許証番号", "rect": [150, 364, 300, 42] },
+    { "id": "acquired", "label": "免許の取得年月日", "rect": [82, 414, 226, 89] },
+    { "id": "categories", "label": "免許の種類", "rect": [316, 414, 223, 89] },
+    { "id": "photo", "label": "顔写真", "rect": [582, 158, 236, 293] },
+    { "id": "issuer", "label": "公安委員会", "rect": [580, 452, 215, 48] }
+  ]
+}

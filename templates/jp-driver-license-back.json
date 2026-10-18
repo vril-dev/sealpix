@@ -1,0 +1,7 @@
+{
+  "id": "jp-driver-license-back",
+  "version": 1,
+  "label": "運転免許証（裏）",
+  "card": { "width": 856, "height": 540 },
+  "fields": [{ "id": "all", "label": "裏面全体", "rect": [0, 0, 856, 540] }]
+}
