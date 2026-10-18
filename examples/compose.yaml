@@ -1,0 +1,50 @@
+# 見本の一式（復号サーバー、画像検証サーバー、見本のバックエンド）を起動する。
+# 先に node examples/setup.ts で鍵と設定ファイルを作っておく。
+name: sealpix-example
+
+services:
+  decrypt:
+    build:
+      context: ..
+      dockerfile: packages/decrypt-server/Dockerfile
+    volumes:
+      - ./.local/decrypt:/config:ro
+    networks:
+      - sealpix
+
+  inspect:
+    build:
+      context: ..
+      dockerfile: packages/inspect-server/Dockerfile
+    volumes:
+      - ./.local/inspect:/config:ro
+    networks:
+      - sealpix
+
+  backend:
+    build:
+      context: ..
+      dockerfile: examples/backend/Dockerfile
+    env_file: ./.local/backend.env
+    environment:
+      HOST: 0.0.0.0
+      DATA_DIR: /data
+      ASSETS_DIR: /assets
+      DECRYPT_URL: http://decrypt:8710
+      INSPECT_URL: http://inspect:8711
+    volumes:
+      - ./.local/assets:/assets:ro
+      - ./.local/data:/data
+    ports:
+      - 127.0.0.1:${SEALPIX_PORT:-8080}:8080
+    depends_on:
+      - decrypt
+      - inspect
+    networks:
+      - sealpix
+
+networks:
+  sealpix:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

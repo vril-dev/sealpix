@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>sealpix 見本: アップロード</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 16px;
+        line-height: 1.6;
+      }
+      .note {
+        color: #555;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>本人確認書類のアップロード（見本）</h1>
+    <p class="note">
+      sealpix の動作を確かめるための見本です。テストには、架空の書類の画像を使ってください。
+    </p>
+    <sealpix-capture
+      public-key="/sealpix/public.jwk.json"
+      policy="/sealpix/policy.json"
+      templates="/sealpix/templates/"
+      allow-whole
+    ></sealpix-capture>
+    <p id="status"></p>
+    <p><a href="/verify.html">保存したデータを確認する</a></p>
+
+    <script type="module" src="/sealpix/sealpix.js"></script>
+    <script type="module">
+      const status = document.getElementById('status')
+
+      async function toBase64(blob) {
+        const bytes = new Uint8Array(await blob.arrayBuffer())
+        let binary = ''
+        for (let i = 0; i < bytes.length; i += 0x8000) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+        }
+        return btoa(binary)
+      }
+
+      document
+        .querySelector('sealpix-capture')
+        .addEventListener('sealpix-complete', async (event) => {
+          const { maskedImage, encryptedData } = event.detail
+          status.textContent = '送信しています…'
+          const body = { encryptedData }
+          if (maskedImage) body.maskedImage = await toBase64(maskedImage)
+          const res = await fetch('/api/uploads', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+          const json = await res.json()
+          status.textContent = res.ok
+            ? `保存しました（ID: ${json.id}）`
+            : `保存できませんでした（${json.error}）`
+        })
+    </script>
+  </body>
+</html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>sealpix 見本: 確認</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 16px;
+        line-height: 1.6;
+      }
+      li {
+        margin: 4px 0;
+      }
+      img {
+        display: block;
+        max-width: 100%;
+        margin: 8px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>保存したデータの確認（見本）</h1>
+    <p>
+      保存されているのは、塗りつぶした画像と暗号化データだけです。「復号して表示」を押すと、復号サーバーで復号した部分を重ねて表示します。
+    </p>
+    <ul id="list"></ul>
+    <p id="status"></p>
+    <h2>保存されている画像</h2>
+    <img id="masked" alt="塗りつぶした画像" hidden />
+    <h2>復号した画像</h2>
+    <sealpix-viewer></sealpix-viewer>
+    <p><a href="/">アップロードに戻る</a></p>
+
+    <script type="module" src="/sealpix/sealpix.js"></script>
+    <script type="module">
+      const list = document.getElementById('list')
+      const status = document.getElementById('status')
+      const masked = document.getElementById('masked')
+      const viewer = document.querySelector('sealpix-viewer')
+
+      async function open(item) {
+        status.textContent = '復号しています…'
+        viewer.clear()
+        const maskedUrl = item.hasMaskedImage ? `/api/uploads/${item.id}/masked.png` : null
+        masked.hidden = maskedUrl === null
+        if (maskedUrl) masked.src = maskedUrl
+        const res = await fetch(`/api/uploads/${item.id}/view`, { method: 'POST' })
+        const json = await res.json()
+        if (!res.ok) {
+          status.textContent = `復号できませんでした（${json.error}）`
+          return
+        }
+        await viewer.show(maskedUrl, json)
+        status.textContent = ''
+      }
+
+      const { items } = await (await fetch('/api/uploads')).json()
+      if (items.length === 0) list.textContent = 'まだデータがありません。'
+      for (const item of items) {
+        const li = document.createElement('li')
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.textContent = '復号して表示'
+        button.addEventListener('click', () => open(item))
+        li.append(`${item.id}（${item.hasMaskedImage ? 'テンプレート' : '画像全体'}） `, button)
+        list.append(li)
+      }
+    </script>
+  </body>
+</html>
