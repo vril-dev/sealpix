@@ -210,30 +210,29 @@ export class SealpixTemplateEditorElement extends HTMLElement {
     }
   }
 
+  // 読み込んだ画像はすぐに表示し、続けて書類の四隅を検出する
   async #loadImage(file: File): Promise<void> {
-    this.#photo = await fileToCanvas(file, PHOTO_MAX_SIDE)
-    this.#setMessage('書類の四隅を合わせて補正するか、そのまま使うかを選んでください。')
-    this.#setImageActions([
-      ['四隅を検出して補正する', () => this.#run(() => this.#detect())],
-      ['補正せずに使う', () => this.#useImage(this.#photo!)],
-    ])
-  }
-
-  async #detect(): Promise<void> {
+    const photo = await fileToCanvas(file, PHOTO_MAX_SIDE)
+    this.#photo = photo
+    this.#adjustCanvas.hidden = false
+    this.#adjuster.start(photo, defaultCorners(photo.width, photo.height))
+    const useAsIs: [string, () => void] = ['補正せずに使う', () => this.#useImage(photo)]
+    this.#setImageActions([useAsIs])
     this.#setMessage('書類の四隅を検出しています…')
+
     const integrity = this.getAttribute('opencv-integrity')
     await loadOpenCv(
       this.getAttribute('opencv-src') ?? DEFAULT_OPENCV_SRC,
       integrity === null ? DEFAULT_OPENCV_INTEGRITY : integrity || null,
     )
-    const photo = this.#photo!
+    // 検出を待つ間に別の画像が選ばれていたら、古い画像の結果は使わない
+    if (this.#photo !== photo) return
     const found = detectCorners(photo)
-    this.#adjustCanvas.hidden = false
-    this.#adjuster.start(photo, found ?? defaultCorners(photo.width, photo.height))
+    if (found !== null) this.#adjuster.start(photo, found)
     this.#setMessage(
       found
-        ? '丸が書類の四隅に合っているか確認してください。'
-        : '書類の四隅を検出できませんでした。丸を動かして、書類の四隅に合わせてください。',
+        ? '丸が書類の四隅に合っているか確認し、「この位置で補正する」を押してください。書類だけを正面から写した画像なら、「補正せずに使う」を押してください。'
+        : '書類の四隅を検出できませんでした。丸を動かして書類の四隅に合わせるか、「補正せずに使う」を押してください。',
     )
     this.#setImageActions([
       [
@@ -243,6 +242,7 @@ export class SealpixTemplateEditorElement extends HTMLElement {
           this.#useImage(warpToRect(photo, this.#adjuster.corners!, width, height))
         },
       ],
+      useAsIs,
     ])
   }
 
