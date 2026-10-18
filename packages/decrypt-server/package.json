@@ -10,6 +10,7 @@
     "token": "node src/cli.ts token"
   },
   "dependencies": {
-    "@sealpix/core": "0.0.0"
+    "@sealpix/core": "0.0.0",
+    "@sealpix/server-common": "0.0.0"
   }
 }

@@ -1,11 +1,11 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { BlockList, isIP } from 'node:net'
-import type { ClientConfig } from './config.ts'
+import type { BaseClient } from './config.ts'
 
 const BEARER_PATTERN = /^Bearer ([A-Za-z0-9_-]{32,256})$/
 
-interface Entry {
-  config: ClientConfig
+interface Entry<T extends BaseClient> {
+  config: T
   hash: Buffer
   allow: BlockList
 }
@@ -31,10 +31,10 @@ function toBlockList(entries: string[]): BlockList {
   return list
 }
 
-export class ClientRegistry {
-  readonly #entries: Entry[]
+export class ClientRegistry<T extends BaseClient> {
+  readonly #entries: Entry<T>[]
 
-  constructor(clients: ClientConfig[]) {
+  constructor(clients: T[]) {
     this.#entries = clients.map((config) => ({
       config,
       hash: Buffer.from(config.tokenSha256, 'hex'),
@@ -44,18 +44,18 @@ export class ClientRegistry {
 
   // Authorization ヘッダーのトークンからクライアントを特定する。該当がなければ undefined を返す。
   // 比較にかかる時間からトークンを推測されないよう、すべてのクライアントと定数時間で比較する。
-  authenticate(authorization: string | undefined): ClientConfig | undefined {
+  authenticate(authorization: string | undefined): T | undefined {
     const match = BEARER_PATTERN.exec(authorization ?? '')
     if (!match) return undefined
     const hash = createHash('sha256').update(match[1], 'utf8').digest()
-    let found: ClientConfig | undefined
+    let found: T | undefined
     for (const entry of this.#entries) {
       if (timingSafeEqual(entry.hash, hash)) found = entry.config
     }
     return found
   }
 
-  isAllowedAddress(client: ClientConfig, remoteAddress: string | undefined): boolean {
+  isAllowedAddress(client: T, remoteAddress: string | undefined): boolean {
     if (remoteAddress === undefined) return false
     const entry = this.#entries.find((e) => e.config === client)
     const address = normalizeAddress(remoteAddress)

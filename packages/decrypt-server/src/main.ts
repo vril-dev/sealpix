@@ -8,10 +8,12 @@ const configPath = process.env.SEALPIX_DECRYPT_CONFIG ?? process.argv[2] ?? 'con
 try {
   const config = await loadConfig(configPath)
   const server = createDecryptServer(config, createAuditWriter(config.auditLogPath))
-  server.listen(config.port, config.host, () => {
-    const scheme = config.tls === null ? 'http' : 'https'
+  server.listen(config.listen.port, config.listen.host, () => {
+    const scheme = config.listen.tls === null ? 'http' : 'https'
     // 標準出力は監査ログに使うことがあるので、起動のメッセージは標準エラー出力に書く
-    console.error(`復号サーバーを起動しました: ${scheme}://${config.host}:${config.port}`)
+    console.error(
+      `復号サーバーを起動しました: ${scheme}://${config.listen.host}:${config.listen.port}`,
+    )
   })
   const stop = () => server.close(() => process.exit(0))
   process.on('SIGTERM', stop)

@@ -11,8 +11,8 @@ import {
   seal,
   type SealpixHeader,
 } from '@sealpix/core'
+import { hashToken } from '@sealpix/server-common'
 import { createAuditWriter } from '../src/audit.ts'
-import { hashToken } from '../src/auth.ts'
 import { ConfigError, loadConfig } from '../src/config.ts'
 import { createDecryptServer } from '../src/server.ts'
 

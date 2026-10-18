@@ -6,6 +6,7 @@ FROM node:24-alpine
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/core ./packages/core
+COPY packages/server-common ./packages/server-common
 COPY packages/decrypt-server ./packages/decrypt-server
 RUN npm ci --omit=dev --ignore-scripts --workspace @sealpix/decrypt-server \
   && rm -rf packages/*/test

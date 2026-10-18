@@ -1,16 +1,16 @@
-import {
-  createServer as createHttpServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from 'node:http'
-import { createServer as createHttpsServer } from 'node:https'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Server } from 'node:net'
 import { open, SealpixError, type OpenResult, type SealpixErrorCode } from '@sealpix/core'
+import {
+  ClientRegistry,
+  createListener,
+  HttpError,
+  RateLimiter,
+  readJsonBody,
+  sendJson,
+} from '@sealpix/server-common'
 import type { AuditEntry, AuditWriter } from './audit.ts'
-import { ClientRegistry } from './auth.ts'
 import type { ClientConfig, Operation, ServerConfig } from './config.ts'
-import { HttpError, readJsonBody, sendJson } from './http.ts'
-import { RateLimiter } from './rate-limit.ts'
 
 const ROUTES: Record<string, Operation> = {
   '/v1/check': 'check',
@@ -65,7 +65,7 @@ function responseFor(operation: Operation, opened: OpenResult): unknown {
 }
 
 export function createDecryptServer(config: ServerConfig, audit: AuditWriter): Server {
-  const registry = new ClientRegistry(config.clients)
+  const registry = new ClientRegistry<ClientConfig>(config.clients)
   const limiter = new RateLimiter(config.ratePerMinute)
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -139,12 +139,5 @@ export function createDecryptServer(config: ServerConfig, audit: AuditWriter): S
     }
   }
 
-  const listener = (req: IncomingMessage, res: ServerResponse) => {
-    handle(req, res).catch(() => {
-      if (!res.headersSent) sendJson(res, 500, { error: 'internal_error' })
-    })
-  }
-  return config.tls === null
-    ? createHttpServer(listener)
-    : createHttpsServer({ cert: config.tls.cert, key: config.tls.key }, listener)
+  return createListener(config.listen, handle)
 }
