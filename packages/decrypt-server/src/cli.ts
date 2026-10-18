@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { exportPrivateJwk, exportPublicJwk, generateKeyPair } from '@sealpix/core'
-import { hashToken } from './auth.ts'
+import { hashToken } from '@sealpix/server-common'
 
 const USAGE = `使い方:
   node src/cli.ts keygen <出力先のディレクトリ>   鍵ペアを作成する
