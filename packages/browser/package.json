@@ -5,7 +5,8 @@
   "type": "module",
   "license": "BSD-2-Clause",
   "scripts": {
-    "build": "vite build"
+    "build": "vite build",
+    "editor": "vite --open /editor.html"
   },
   "dependencies": {
     "@sealpix/core": "0.0.0"

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>sealpix テンプレートエディター</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 16px;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>テンプレートエディター</h1>
+    <p>
+      見本画像の上で項目の範囲を指定して、テンプレートの JSON
+      を作ります。読み込んだ画像は、このページの中だけで使い、書き出すファイルには含めません。
+    </p>
+    <sealpix-template-editor></sealpix-template-editor>
+    <script type="module" src="/src/index.ts"></script>
+  </body>
+</html>

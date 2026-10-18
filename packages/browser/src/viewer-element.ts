@@ -7,6 +7,7 @@ export interface DecryptedView {
 }
 
 const STYLE = `
+  [hidden] { display: none !important; }
   :host { display: block; }
   canvas { display: block; max-width: 100%; height: auto; }
   label { display: inline-flex; gap: 6px; align-items: center; margin-top: 8px; }
