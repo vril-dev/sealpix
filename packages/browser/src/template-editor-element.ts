@@ -16,7 +16,7 @@ const HANDLE_HIT_RADIUS = 14
 // これより小さい範囲は、クリックの誤操作とみなして作らない
 const MIN_SIZE = 4
 // 新しく作るテンプレートでは、長い辺をこの大きさにそろえる
-const LONG_SIDE = 1000
+const LONG_SIDE = 2000
 // ID-1 サイズのカード（85.6mm × 54mm）を補正した後の大きさ
 const ID1_SIZE = { width: 856, height: 540 }
 // 縦横比の差がこの割合までなら、同じ縦横比とみなす
