@@ -1,4 +1,4 @@
-import { decodeBase64url, encodeBase64url, pngSize, utf8Decode, utf8Encode } from './bytes.ts'
+import { decodeBase64url, encodeBase64url, jpegSize, utf8Decode, utf8Encode } from './bytes.ts'
 import { SealpixError } from './errors.ts'
 import { validateSealpixHeader, type SealpixHeader } from './header.ts'
 import { withLimits, type Limits } from './limits.ts'
@@ -23,11 +23,12 @@ export interface SealedFile {
   tag: string
 }
 
-// 範囲ごとの元画像。box は範囲の外接矩形、png はその矩形を切り出した画像（範囲外は透明）。
+// 範囲ごとの元画像。box は範囲の外接矩形、jpeg はその矩形を切り出した JPEG 画像。
+// JPEG は透明を持てないので、矩形の中で範囲の外にあたる画素も含む。
 export interface RegionImage {
   id: string
   box: Box
-  png: Uint8Array
+  jpeg: Uint8Array
 }
 
 export interface SealInput {
@@ -99,11 +100,11 @@ function checkImages(images: RegionImage[], header: SealpixHeader): void {
       throw new SealpixError('invalid_region', '画像が範囲と一致しません')
     }
     // 復号した画像を表示する前に、画像の幅と高さが外接矩形と一致するかを確認しておく
-    const size = pngSize(image.png)
+    const size = jpegSize(image.jpeg)
     if (size === null || size[0] !== image.box[2] || size[1] !== image.box[3]) {
       throw new SealpixError(
         'invalid_region',
-        '範囲の画像が PNG でないか、サイズが外接矩形と一致しません',
+        '範囲の画像が JPEG でないか、サイズが外接矩形と一致しません',
       )
     }
   })
@@ -190,7 +191,7 @@ export async function seal(input: SealInput, limitOverrides?: Partial<Limits>): 
       regions: input.images.map((image) => ({
         id: image.id,
         box: image.box,
-        png: encodeBase64url(image.png),
+        jpeg: encodeBase64url(image.jpeg),
       })),
     }),
   )
@@ -283,13 +284,13 @@ export async function open(
       !isObject(item) ||
       typeof item.id !== 'string' ||
       !isBox(item.box) ||
-      typeof item.png !== 'string'
+      typeof item.jpeg !== 'string'
     ) {
       malformed('ペイロードの範囲が不正です')
     }
-    const png = decodeBase64url(item.png)
-    if (png === null) malformed('ペイロードの画像が不正です')
-    return { id: item.id, box: item.box, png }
+    const jpeg = decodeBase64url(item.jpeg)
+    if (jpeg === null) malformed('ペイロードの画像が不正です')
+    return { id: item.id, box: item.box, jpeg }
   })
   checkImages(images, parsed.header)
   return { kid: parsed.kid, header: parsed.header, images }

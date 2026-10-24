@@ -1,16 +1,19 @@
 import { randomBytes } from 'node:crypto'
-import { boundingBox, type Point, type RegionShape } from '@sealpix/core'
-import { PNG } from 'pngjs'
+import { boundingBox, jpegSize, type Point, type RegionShape } from '@sealpix/core'
+import { decode, encode } from 'jpeg-js'
 
 // 塗りつぶしに使うブロックの一辺（ピクセル）。ブラウザ用コンポーネントと同じ値
 const BLOCK_SIZE = 6
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+// 作り直す JPEG の品質（1〜100）。ブラウザ用コンポーネントの品質（0.9）と同じ
+const JPEG_QUALITY = 90
+// jpeg-js がデコードに使うメモリの、1 ピクセルあたりの上限（実測では約 22 バイト）
+const DECODE_BYTES_PER_PIXEL = 32
 
 export interface RgbaImage {
   width: number
   height: number
   // 1 ピクセルあたり 4 バイト（R、G、B、A）
-  data: Buffer
+  data: Uint8Array
 }
 
 export class ImageError extends Error {
@@ -22,33 +25,36 @@ export class ImageError extends Error {
   }
 }
 
-// PNG の先頭（シグネチャと IHDR チャンク）から幅と高さを読む。PNG でなければ null を返す。
-function pngSize(bytes: Buffer): [number, number] | null {
-  if (bytes.length < 24 || !PNG_SIGNATURE.every((b, i) => bytes[i] === b)) return null
-  if (bytes.toString('latin1', 12, 16) !== 'IHDR') return null
-  return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)]
-}
-
-// 全体をデコードする前に、幅と高さが上限内かを確かめる（展開すると巨大になる画像への対策）
-export function decodePng(bytes: Buffer, maxSide: number): RgbaImage {
-  const size = pngSize(bytes)
-  if (size === null) throw new ImageError('not_png', 'PNG 画像ではありません')
+// デコードする前に、JPEG の先頭から幅と高さを読み、上限内かを確かめる（展開すると巨大になる画像への対策）
+export function jpegImageSize(bytes: Buffer, maxSide: number): [number, number] {
+  const size = jpegSize(bytes)
+  if (size === null) throw new ImageError('not_jpeg', 'JPEG 画像ではありません')
   if (size[0] < 1 || size[1] < 1 || size[0] > maxSide || size[1] > maxSide) {
     throw new ImageError('image_too_large', '画像の幅または高さが上限を超えています')
   }
+  return size
+}
+
+// 先に確かめた幅と高さの分だけのメモリでデコードする。壊れたデータは推測で補わない
+export function decodeJpeg(bytes: Buffer, width: number, height: number): RgbaImage {
   try {
-    const png = PNG.sync.read(bytes)
-    return { width: png.width, height: png.height, data: png.data }
+    const image = decode(bytes, {
+      useTArray: true,
+      formatAsRGBA: true,
+      tolerantDecoding: false,
+      maxResolutionInMP: (width * height + 1) / 1e6,
+      maxMemoryUsageInMB: Math.ceil((width * height * DECODE_BYTES_PER_PIXEL) / (1024 * 1024)),
+    })
+    if (image.width !== width || image.height !== height) throw new Error('size changed')
+    return { width, height, data: image.data }
   } catch {
-    throw new ImageError('invalid_png', 'PNG 画像をデコードできません')
+    throw new ImageError('invalid_jpeg', 'JPEG 画像をデコードできません')
   }
 }
 
-// PNG に作り直す。撮影情報などの付加的なデータは書き出さない。
-export function encodePng(image: RgbaImage): Buffer {
-  const png = new PNG({ width: image.width, height: image.height })
-  image.data.copy(png.data)
-  return PNG.sync.write(png)
+// JPEG に作り直す。撮影情報などの付加的なデータは書き出さない。
+export function encodeJpeg(image: RgbaImage): Buffer {
+  return encode(image, JPEG_QUALITY).data
 }
 
 function crossings(paths: Point[][], x: number, y: number): { odd: boolean; winding: number } {

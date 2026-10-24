@@ -13,15 +13,31 @@ import {
   type SealpixHeader,
 } from '../src/index.ts'
 
-// 幅と高さを指定した PNG の先頭部分（シグネチャと IHDR）。sealpix は先頭だけを読んでサイズを確認する。
-function png(width: number, height: number): Uint8Array {
-  const bytes = new Uint8Array(33)
-  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52])
-  const view = new DataView(bytes.buffer)
-  view.setUint32(16, width)
-  view.setUint32(20, height)
-  bytes.set([8, 6, 0, 0, 0], 24)
-  return bytes
+// 幅と高さを指定した JPEG の先頭部分（SOI と SOF0）。sealpix は先頭だけを読んでサイズを確認する。
+function jpeg(width: number, height: number): Uint8Array {
+  return new Uint8Array([
+    0xff,
+    0xd8,
+    0xff,
+    0xc0,
+    0,
+    17,
+    8,
+    height >> 8,
+    height & 0xff,
+    width >> 8,
+    width & 0xff,
+    3,
+    1,
+    0x22,
+    0,
+    2,
+    0x11,
+    1,
+    3,
+    0x11,
+    1,
+  ])
 }
 
 const header: SealpixHeader = {
@@ -59,8 +75,8 @@ const header: SealpixHeader = {
 }
 
 const images: RegionImage[] = [
-  { id: 'name', box: [110, 82, 480, 78], png: png(480, 78) },
-  { id: 'number', box: [90, 412, 500, 86], png: png(500, 86) },
+  { id: 'name', box: [110, 82, 480, 78], jpeg: jpeg(480, 78) },
+  { id: 'number', box: [90, 412, 500, 86], jpeg: jpeg(500, 86) },
 ]
 
 let publicKey: CryptoKey
@@ -112,8 +128,8 @@ describe('暗号化ファイル', () => {
     expect(opened.header).toEqual(header)
     expect(opened.images.map((i) => i.id)).toEqual(['name', 'number'])
     expect(opened.images.map((i) => i.box)).toEqual(images.map((i) => i.box))
-    expect(opened.images.map((i) => Buffer.from(i.png))).toEqual(
-      images.map((i) => Buffer.from(i.png)),
+    expect(opened.images.map((i) => Buffer.from(i.jpeg))).toEqual(
+      images.map((i) => Buffer.from(i.jpeg)),
     )
   })
 
@@ -168,11 +184,24 @@ describe('暗号化ファイル', () => {
       ],
     })
     const image = (x: number): RegionImage[] => [
-      { id: 'name', box: [600, 0, x - 600, 100], png: png(x - 600, 100) },
+      { id: 'name', box: [600, 0, x - 600, 100], jpeg: jpeg(x - 600, 100) },
     ]
     expect(await codeOf(seal({ publicKey, kid, header: edge(856), images: image(856) }))).toBe('ok')
     expect(await codeOf(seal({ publicKey, kid, header: edge(857), images: image(857) }))).toBe(
       'invalid_region',
     )
+  })
+
+  it('JPEG でない画像や、外接矩形と大きさが違う画像は拒否する', async () => {
+    const withImage = (bytes: Uint8Array): RegionImage[] => [
+      { ...images[0], jpeg: bytes },
+      images[1],
+    ]
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    for (const bytes of [png, jpeg(481, 78), jpeg(480, 77)]) {
+      expect(await codeOf(seal({ publicKey, kid, header, images: withImage(bytes) }))).toBe(
+        'invalid_region',
+      )
+    }
   })
 })

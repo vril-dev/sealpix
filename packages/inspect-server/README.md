@@ -7,7 +7,7 @@
 - 暗号化データのヘッダーに記録された範囲が、テンプレートとポリシーから求めた範囲と一致するかを確かめます。
 - 画像の大きさがヘッダーと一致するかを確かめます。
 - その範囲を、サーバー側でもう一度塗りつぶします。
-- PNG を作り直します。画像の後ろに付けられたデータや撮影情報は残りません。
+- JPEG を作り直します。画像の後ろに付けられたデータや撮影情報は残りません。
 
 暗号化データの中身（元の画像）が本物かどうかは、鍵を持たないこのサーバーでは確認できません。
 
@@ -55,21 +55,21 @@ docker build -f packages/inspect-server/Dockerfile -t sealpix-inspect-server .
 `POST /v1/inspect` に、`Authorization: Bearer <トークン>` と `Content-Type: application/json` を付けて送ります。
 
 ```json
-{ "file": "<暗号化データの文字列>", "maskedImage": "<塗りつぶした画像（PNG）の Base64>" }
+{ "file": "<暗号化データの文字列>", "maskedImage": "<塗りつぶした画像（JPEG）の Base64>" }
 ```
 
-| 暗号化の対象 | 成功時の応答                                                                    |
-| ------------ | ------------------------------------------------------------------------------- |
-| テンプレート | `{"ok": true, "mode": "template", "maskedImage": "<作り直した PNG の Base64>"}` |
-| 画像全体     | `{"ok": true, "mode": "whole"}`（`maskedImage` は送りません）                   |
+| 暗号化の対象 | 成功時の応答                                                                     |
+| ------------ | -------------------------------------------------------------------------------- |
+| テンプレート | `{"ok": true, "mode": "template", "maskedImage": "<作り直した JPEG の Base64>"}` |
+| 画像全体     | `{"ok": true, "mode": "whole"}`（`maskedImage` は送りません）                    |
 
 成功したら、応答の `maskedImage` と暗号化データを保存してください。ブラウザから受け取った画像は保存しないでください。
 
-| ステータス | 主なエラーコード                                                                          | 意味                                         |
-| ---------- | ----------------------------------------------------------------------------------------- | -------------------------------------------- |
-| 400        | `malformed`、`masked_image_required`、`masked_image_not_expected`                         | 要求の形式が不正                             |
-| 401        | `unauthorized`                                                                            | トークンがない、または一致しない             |
-| 403        | `address_not_allowed`                                                                     | 許可していないアドレス                       |
-| 413        | `too_large`、`image_too_large`                                                            | 画像やデータが上限を超えている               |
-| 422        | `policy_mismatch`、`unknown_policy`、`unknown_template`、`image_size_mismatch`、`not_png` | 範囲がポリシーと一致しない、または画像が不正 |
-| 429        | `rate_limited`                                                                            | 要求の回数が上限を超えている                 |
+| ステータス | 主なエラーコード                                                                                           | 意味                                         |
+| ---------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| 400        | `malformed`、`masked_image_required`、`masked_image_not_expected`                                          | 要求の形式が不正                             |
+| 401        | `unauthorized`                                                                                             | トークンがない、または一致しない             |
+| 403        | `address_not_allowed`                                                                                      | 許可していないアドレス                       |
+| 413        | `too_large`、`image_too_large`                                                                             | 画像やデータが上限を超えている               |
+| 422        | `policy_mismatch`、`unknown_policy`、`unknown_template`、`image_size_mismatch`、`not_jpeg`、`invalid_jpeg` | 範囲がポリシーと一致しない、または画像が不正 |
+| 429        | `rate_limited`                                                                                             | 要求の回数が上限を超えている                 |

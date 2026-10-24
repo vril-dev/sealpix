@@ -3,7 +3,7 @@ import { newCanvas } from './geometry.ts'
 // 復号サーバーの view の応答のうち、表示に使う部分
 export interface DecryptedView {
   header: { image: { width: number; height: number } }
-  regions: { id: string; box: [number, number, number, number]; png: string }[]
+  regions: { id: string; box: [number, number, number, number]; jpeg: string }[]
 }
 
 const STYLE = `
@@ -85,7 +85,7 @@ export class SealpixViewerElement extends HTMLElement {
         throw new Error('復号した範囲が画像の外にあります')
       }
       const bitmap = await createImageBitmap(
-        new Blob([decodeBase64url(region.png)], { type: 'image/png' }),
+        new Blob([decodeBase64url(region.jpeg)], { type: 'image/jpeg' }),
       )
       r.drawImage(bitmap, x, y)
       bitmap.close()

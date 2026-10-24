@@ -98,7 +98,7 @@ async function upload(req: IncomingMessage, res: ServerResponse): Promise<void> 
   await writeFile(path.join(dir, 'encrypted.json'), body.encryptedData)
   const result = inspected.json as { maskedImage?: string }
   if (result.maskedImage)
-    await writeFile(path.join(dir, 'masked.png'), Buffer.from(result.maskedImage, 'base64'))
+    await writeFile(path.join(dir, 'masked.jpg'), Buffer.from(result.maskedImage, 'base64'))
   send(res, 201, { id })
 }
 
@@ -118,7 +118,7 @@ async function list(res: ServerResponse): Promise<void> {
       .filter((id) => ID_PATTERN.test(id))
       .map(async (id) => ({
         id,
-        hasMaskedImage: await readFile(path.join(DATA_DIR, id, 'masked.png')).then(
+        hasMaskedImage: await readFile(path.join(DATA_DIR, id, 'masked.jpg')).then(
           () => true,
           () => false,
         ),
@@ -147,10 +147,10 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   if (pathname === '/api/uploads' && req.method === 'POST') return upload(req, res)
   if (pathname === '/api/uploads' && req.method === 'GET') return list(res)
 
-  const match = /^\/api\/uploads\/([^/]+)\/(masked\.png|view)$/.exec(pathname)
+  const match = /^\/api\/uploads\/([^/]+)\/(masked\.jpg|view)$/.exec(pathname)
   if (match && ID_PATTERN.test(match[1])) {
-    if (match[2] === 'masked.png' && req.method === 'GET') {
-      return sendFile(res, path.join(DATA_DIR, match[1], 'masked.png'), 'image/png')
+    if (match[2] === 'masked.jpg' && req.method === 'GET') {
+      return sendFile(res, path.join(DATA_DIR, match[1], 'masked.jpg'), 'image/jpeg')
     }
     if (match[2] === 'view' && req.method === 'POST') return view(match[1], res)
   }

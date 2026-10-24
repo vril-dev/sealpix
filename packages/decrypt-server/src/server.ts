@@ -59,7 +59,7 @@ function responseFor(operation: Operation, opened: OpenResult): unknown {
     regions: opened.images.map((image) => ({
       id: image.id,
       box: image.box,
-      png: Buffer.from(image.png).toString('base64url'),
+      jpeg: Buffer.from(image.jpeg).toString('base64url'),
     })),
   }
 }

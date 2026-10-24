@@ -18,14 +18,31 @@ import {
 const readJson = async (relative: string) =>
   JSON.parse(await readFile(new URL(relative, import.meta.url), 'utf8'))
 
-// 幅と高さを指定した PNG の先頭部分（シグネチャと IHDR）
-function png(width: number, height: number): Uint8Array {
-  const bytes = new Uint8Array(33)
-  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52])
-  const view = new DataView(bytes.buffer)
-  view.setUint32(16, width)
-  view.setUint32(20, height)
-  return bytes
+// 幅と高さを指定した JPEG の先頭部分（SOI と SOF0）
+function jpeg(width: number, height: number): Uint8Array {
+  return new Uint8Array([
+    0xff,
+    0xd8,
+    0xff,
+    0xc0,
+    0,
+    17,
+    8,
+    height >> 8,
+    height & 0xff,
+    width >> 8,
+    width & 0xff,
+    3,
+    1,
+    0x22,
+    0,
+    2,
+    0x11,
+    1,
+    3,
+    0x11,
+    1,
+  ])
 }
 
 const card = validateTemplate(
@@ -69,7 +86,7 @@ describe('テンプレートとポリシー', () => {
       }
       const images = regions.map((r) => {
         const box = boundingBox(r.paths)
-        return { id: r.id, box, png: png(box[2], box[3]) }
+        return { id: r.id, box, jpeg: jpeg(box[2], box[3]) }
       })
       await expect(seal({ publicKey: pub.key, kid: pub.kid, header, images })).resolves.toBeTypeOf(
         'string',

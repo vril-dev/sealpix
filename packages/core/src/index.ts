@@ -1,3 +1,4 @@
+export { jpegSize } from './bytes.ts'
 export { SealpixError, type SealpixErrorCode } from './errors.ts'
 export { DEFAULT_LIMITS, withLimits, type Limits } from './limits.ts'
 export {
