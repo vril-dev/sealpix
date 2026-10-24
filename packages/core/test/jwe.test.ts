@@ -192,7 +192,7 @@ describe('暗号化ファイル', () => {
     )
   })
 
-  it('JPEG でない画像や、外接矩形と大きさが違う画像は拒否する', async () => {
+  it('JPEG でない画像や、範囲を囲む四角形と大きさが違う画像は拒否する', async () => {
     const withImage = (bytes: Uint8Array): RegionImage[] => [
       { ...images[0], jpeg: bytes },
       images[1],
