@@ -45,7 +45,7 @@
       async function open(item) {
         status.textContent = '復号しています…'
         viewer.clear()
-        const maskedUrl = item.hasMaskedImage ? `/api/uploads/${item.id}/masked.png` : null
+        const maskedUrl = item.hasMaskedImage ? `/api/uploads/${item.id}/masked.jpg` : null
         masked.hidden = maskedUrl === null
         if (maskedUrl) masked.src = maskedUrl
         try {

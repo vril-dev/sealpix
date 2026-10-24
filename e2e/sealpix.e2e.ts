@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
-import { PNG } from 'pngjs'
+import { decode, encode } from 'jpeg-js'
 import {
   boundingBox,
   regionsFor,
@@ -103,11 +103,10 @@ async function captureResult(page: Page): Promise<UploadBody> {
   return capture.evaluate((element) => (element as CaptureWithResult).sealedResult)
 }
 
-// 白一色の PNG
-function whitePng(width: number, height: number): string {
-  const png = new PNG({ width, height })
-  png.data.fill(255)
-  return PNG.sync.write(png).toString('base64')
+// 白一色の JPEG
+function whiteJpeg(width: number, height: number): string {
+  const data = new Uint8Array(width * height * 4).fill(255)
+  return encode({ width, height, data }, 90).data.toString('base64')
 }
 
 test('テンプレートで暗号化して保存し、幅856の画像を復号して表示する', async ({ page }) => {
@@ -134,13 +133,13 @@ test('白一色に差し替えた画像でも、暗号化する範囲は塗り�
     JSON.parse(await readFile(path.join(ROOT, 'examples/policy.json'), 'utf8')),
     withLimits(),
   )
-  body.maskedImage = whitePng(template.card.width, template.card.height)
+  body.maskedImage = whiteJpeg(template.card.width, template.card.height)
   const response = await request.post('/api/uploads', { data: body })
   expect(response.status()).toBe(201)
   const { id } = await response.json()
-  const saved = await request.get(`/api/uploads/${id}/masked.png`)
+  const saved = await request.get(`/api/uploads/${id}/masked.jpg`)
   expect(saved.status()).toBe(200)
-  const image = PNG.sync.read(await saved.body())
+  const image = decode(await saved.body(), { useTArray: true })
 
   // 氏名の座標を padding の分だけ広げた範囲を調べる。
   const name = regionsFor(template, policy).find((region) => region.id === 'name')!
@@ -148,7 +147,9 @@ test('白一色に差し替えた画像でも、暗号化する範囲は塗り�
   let white = 0
   for (let py = y; py < y + height; py++) {
     for (let px = x; px < x + width; px++) {
-      if (image.data.readUInt32BE((py * image.width + px) * 4) === 0xffffffff) white++
+      // JPEG は少し値がずれるので、R、G、B がどれも 250 以上なら白とみなす
+      const p = (py * image.width + px) * 4
+      if ([0, 1, 2].every((c) => image.data[p + c] >= 250)) white++
     }
   }
   expect(white).toBeLessThan(width * height * 0.01)

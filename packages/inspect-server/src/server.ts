@@ -17,7 +17,7 @@ import {
   type BaseClient,
 } from '@sealpix/server-common'
 import type { InspectConfig } from './config.ts'
-import { decodePng, encodePng, ImageError, paintRegions } from './image.ts'
+import { decodeJpeg, encodeJpeg, ImageError, jpegImageSize, paintRegions } from './image.ts'
 
 const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/
 // リクエスト本文のうち、画像と暗号化データ以外の部分に見込む余裕
@@ -33,8 +33,8 @@ const ERROR_STATUS: Record<SealpixErrorCode, number> = {
 }
 
 const IMAGE_ERROR_STATUS: Record<string, number> = {
-  not_png: 422,
-  invalid_png: 422,
+  not_jpeg: 422,
+  invalid_jpeg: 422,
   image_too_large: 413,
 }
 
@@ -97,15 +97,17 @@ export function createInspectServer(config: InspectConfig): Server {
       }
       const bytes = Buffer.from(body.maskedImage, 'base64')
       if (bytes.length > config.maxImageBytes) throw new HttpError(413, 'too_large')
-      const image = decodePng(bytes, config.maxImageSide)
-      if (image.width !== header.image.width || image.height !== header.image.height) {
+      // 大きさはテンプレートのカードと同じはずなので、違えばデコードせずに拒む
+      const [width, height] = jpegImageSize(bytes, config.maxImageSide)
+      if (width !== header.image.width || height !== header.image.height) {
         throw new HttpError(422, 'image_size_mismatch')
       }
+      const image = decodeJpeg(bytes, width, height)
       paintRegions(image, header.regions)
       sendJson(res, 200, {
         ok: true,
         mode: 'template',
-        maskedImage: encodePng(image).toString('base64'),
+        maskedImage: encodeJpeg(image).toString('base64'),
       })
     } catch (error) {
       let status = 500

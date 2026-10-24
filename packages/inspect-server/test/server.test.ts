@@ -3,7 +3,7 @@ import type { AddressInfo, Server } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { PNG } from 'pngjs'
+import { decode, encode } from 'jpeg-js'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import {
   boundingBox,
@@ -27,21 +27,37 @@ import { createInspectServer } from '../src/server.ts'
 const TOKEN = 'c'.repeat(43)
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 
-// 幅と高さを指定した PNG の先頭部分（シグネチャと IHDR）。暗号化データの作成にだけ使う
-function pngHeader(width: number, height: number): Uint8Array {
-  const bytes = new Uint8Array(33)
-  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52])
-  const view = new DataView(bytes.buffer)
-  view.setUint32(16, width)
-  view.setUint32(20, height)
-  return bytes
+// 幅と高さを指定した JPEG の先頭部分（SOI と SOF0）。暗号化データの作成にだけ使う
+function jpegHeader(width: number, height: number): Uint8Array {
+  return new Uint8Array([
+    0xff,
+    0xd8,
+    0xff,
+    0xc0,
+    0,
+    17,
+    8,
+    height >> 8,
+    height & 0xff,
+    width >> 8,
+    width & 0xff,
+    3,
+    1,
+    0x22,
+    0,
+    2,
+    0x11,
+    1,
+    3,
+    0x11,
+    1,
+  ])
 }
 
-// 白一色の PNG
-function whitePng(width: number, height: number): string {
-  const png = new PNG({ width, height })
-  png.data.fill(255)
-  return PNG.sync.write(png).toString('base64')
+// 白一色の JPEG
+function whiteJpeg(width: number, height: number): string {
+  const data = new Uint8Array(width * height * 4).fill(255)
+  return encode({ width, height, data }, 90).data.toString('base64')
 }
 
 let dir: string
@@ -106,7 +122,7 @@ async function sealedFile(regions: RegionShape[]): Promise<string> {
   }
   const images = regions.map((r) => {
     const box = boundingBox(r.paths)
-    return { id: r.id, box, png: pngHeader(box[2], box[3]) }
+    return { id: r.id, box, jpeg: jpegHeader(box[2], box[3]) }
   })
   return seal({ publicKey: key.key, kid: key.kid, header, images })
 }
@@ -123,25 +139,26 @@ describe('画像検証サーバー', () => {
   it('ポリシーどおりの範囲を塗りつぶし直し、範囲の外は変えない', async () => {
     const post = await start()
     const regions = await examplePolicyRegions()
-    const res = await post({ file: await sealedFile(regions), maskedImage: whitePng(856, 540) })
+    const res = await post({ file: await sealedFile(regions), maskedImage: whiteJpeg(856, 540) })
     expect(res.status).toBe(200)
     const body = await res.json()
-    const out = PNG.sync.read(Buffer.from(body.maskedImage, 'base64'))
-    const pixel = (x: number, y: number) => out.data.readUInt32BE((y * out.width + x) * 4)
+    const out = decode(Buffer.from(body.maskedImage, 'base64'), { useTArray: true })
+    // JPEG は少し値がずれるので、R、G、B がどれも 250 以上なら白とみなす
+    const isWhite = (x: number, y: number) =>
+      [0, 1, 2].every((c) => out.data[(y * out.width + x) * 4 + c] >= 250)
     // 氏名の範囲は、白一色ではなくなる
     const [nx, ny, nw, nh] = boundingBox(regions.find((r) => r.id === 'name')!.paths)
     let white = 0
-    for (let y = ny; y < ny + nh; y++)
-      for (let x = nx; x < nx + nw; x++) if (pixel(x, y) === 0xffffffff) white++
+    for (let y = ny; y < ny + nh; y++) for (let x = nx; x < nx + nw; x++) if (isWhite(x, y)) white++
     expect(white).toBeLessThan(nw * nh * 0.01)
     // 有効期限（暗号化しない項目）の中央は白のまま
-    expect(pixel(286, 214)).toBe(0xffffffff)
+    expect(isWhite(286, 214)).toBe(true)
   })
 
   it('ヘッダーの範囲がポリシーと違えば 422 を返す', async () => {
     const post = await start()
     const regions = (await examplePolicyRegions()).slice(1)
-    const res = await post({ file: await sealedFile(regions), maskedImage: whitePng(856, 540) })
+    const res = await post({ file: await sealedFile(regions), maskedImage: whiteJpeg(856, 540) })
     expect(res.status).toBe(422)
     expect(await res.json()).toEqual({ error: 'policy_mismatch' })
   })
@@ -149,7 +166,7 @@ describe('画像検証サーバー', () => {
   it('画像の大きさがヘッダーと違えば 422 を返す', async () => {
     const post = await start()
     const file = await sealedFile(await examplePolicyRegions())
-    const res = await post({ file, maskedImage: whitePng(855, 540) })
+    const res = await post({ file, maskedImage: whiteJpeg(855, 540) })
     expect(res.status).toBe(422)
     expect(await res.json()).toEqual({ error: 'image_size_mismatch' })
   })
@@ -157,7 +174,7 @@ describe('画像検証サーバー', () => {
   it('画像の幅や高さが上限を超えると 413 を返す', async () => {
     const post = await start({ maxImageSide: 800 })
     const file = await sealedFile(await examplePolicyRegions())
-    const res = await post({ file, maskedImage: whitePng(856, 540) })
+    const res = await post({ file, maskedImage: whiteJpeg(856, 540) })
     expect(res.status).toBe(413)
   })
 

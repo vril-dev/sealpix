@@ -1,7 +1,6 @@
 // バイト列と文字列の変換。ブラウザと Node.js の両方で使える API だけを使う。
 
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]*$/
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
 const encoder = new TextEncoder()
 const strictDecoder = new TextDecoder('utf-8', { fatal: true })
@@ -37,12 +36,30 @@ export function decodeBase64url(text: string): Uint8Array<ArrayBuffer> | null {
   return out
 }
 
-// PNG の先頭（シグネチャと IHDR チャンク）から幅と高さを読む。PNG でなければ null を返す。
+// JPEG の先頭（SOI から、幅と高さを持つ SOF セグメントまで）から幅と高さを読む。
+// ベースライン、拡張、プログレッシブ（SOF0〜SOF2）の JPEG でなければ null を返す。
 // 画像全体はデコードしないので、データが壊れていないことまでは検証しない。
-export function pngSize(bytes: Uint8Array): [number, number] | null {
-  const isIhdr =
-    bytes[12] === 0x49 && bytes[13] === 0x48 && bytes[14] === 0x44 && bytes[15] === 0x52
-  if (bytes.length < 24 || !PNG_SIGNATURE.every((b, i) => bytes[i] === b) || !isIhdr) return null
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  return [view.getUint32(16), view.getUint32(20)]
+export function jpegSize(bytes: Uint8Array): [number, number] | null {
+  if (bytes.length < 2 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null
+  let i = 2
+  while (i + 4 <= bytes.length) {
+    const marker = bytes[i + 1]
+    // 長さを持たないマーカー（RST、SOI、EOI など）や SOS が SOF より前に来たら、扱わない
+    if (
+      bytes[i] !== 0xff ||
+      marker < 0xc0 ||
+      marker === 0xff ||
+      (marker >= 0xd0 && marker <= 0xda)
+    ) {
+      return null
+    }
+    const length = (bytes[i + 2] << 8) | bytes[i + 3]
+    if (marker <= 0xc2) {
+      if (length < 8 || i + 9 > bytes.length) return null
+      return [(bytes[i + 7] << 8) | bytes[i + 8], (bytes[i + 5] << 8) | bytes[i + 6]]
+    }
+    if (length < 2) return null
+    i += 2 + length
+  }
+  return null
 }

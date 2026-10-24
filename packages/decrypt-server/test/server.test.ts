@@ -18,15 +18,31 @@ import { createDecryptServer } from '../src/server.ts'
 
 const TOKEN = 'a'.repeat(43)
 
-// 幅と高さを指定した PNG の先頭部分（シグネチャと IHDR）
-function png(width: number, height: number): Uint8Array {
-  const bytes = new Uint8Array(33)
-  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52])
-  const view = new DataView(bytes.buffer)
-  view.setUint32(16, width)
-  view.setUint32(20, height)
-  bytes.set([8, 6, 0, 0, 0], 24)
-  return bytes
+// 幅と高さを指定した JPEG の先頭部分（SOI と SOF0）
+function jpeg(width: number, height: number): Uint8Array {
+  return new Uint8Array([
+    0xff,
+    0xd8,
+    0xff,
+    0xc0,
+    0,
+    17,
+    8,
+    height >> 8,
+    height & 0xff,
+    width >> 8,
+    width & 0xff,
+    3,
+    1,
+    0x22,
+    0,
+    2,
+    0x11,
+    1,
+    3,
+    0x11,
+    1,
+  ])
 }
 
 const header: SealpixHeader = {
@@ -68,7 +84,7 @@ beforeAll(async () => {
     publicKey: pub.key,
     kid,
     header,
-    images: [{ id: 'all', box: [0, 0, 10, 10], png: png(10, 10) }],
+    images: [{ id: 'all', box: [0, 0, 10, 10], jpeg: jpeg(10, 10) }],
   })
 })
 
@@ -119,7 +135,7 @@ describe('復号サーバー', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.kid).toBe(kid)
-    expect(body.regions[0].png).toBe(Buffer.from(png(10, 10)).toString('base64url'))
+    expect(body.regions[0].jpeg).toBe(Buffer.from(jpeg(10, 10)).toString('base64url'))
 
     expect(await auditLines()).toEqual([
       expect.objectContaining({
@@ -130,7 +146,7 @@ describe('復号サーバー', () => {
         result: 'ok',
       }),
     ])
-    expect(await readFile(auditPath, 'utf8')).not.toContain(body.regions[0].png)
+    expect(await readFile(auditPath, 'utf8')).not.toContain(body.regions[0].jpeg)
   })
 
   it('トークンがない、または違う場合は 401 を返す', async () => {

@@ -13,9 +13,11 @@ import { newCanvas } from './geometry.ts'
 
 // 塗りつぶしに使うブロックの一辺（ピクセル）
 const BLOCK_SIZE = 6
+// 画像を書き出す JPEG の品質（0〜1）
+const JPEG_QUALITY = 0.9
 
 export interface SealResult {
-  // 範囲を塗りつぶした画像（PNG）。画像全体を暗号化したときは null
+  // 範囲を塗りつぶした画像（JPEG）。画像全体を暗号化したときは null
   maskedImage: Blob | null
   // 暗号化データ（JWE の JSON 文字列）
   encryptedData: string
@@ -29,11 +31,12 @@ function tracePaths(g: CanvasRenderingContext2D, region: RegionShape): void {
   }
 }
 
-function toPng(canvas: HTMLCanvasElement): Promise<Blob> {
+function toJpeg(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('PNG に変換できませんでした'))),
-      'image/png',
+      (blob) => (blob ? resolve(blob) : reject(new Error('JPEG に変換できませんでした'))),
+      'image/jpeg',
+      JPEG_QUALITY,
     )
   })
 }
@@ -67,19 +70,16 @@ export function paintRegions(canvas: HTMLCanvasElement, regions: RegionShape[]):
   }
 }
 
-// 範囲の外接矩形を切り出した PNG を作る。範囲の外は透明にする。
+// 範囲の外接矩形を切り出した JPEG を作る。JPEG は透明を持てないので、矩形の中で範囲の外にあたる
+// 画素も含む。その画素は、塗りつぶした画像に写っている部分か、同じ暗号化データに入るほかの範囲の一部。
 export async function cropRegion(
   canvas: HTMLCanvasElement,
   region: RegionShape,
 ): Promise<RegionImage> {
   const box = boundingBox(region.paths)
   const out = newCanvas(box[2], box[3])
-  const g = out.getContext('2d')!
-  g.translate(-box[0], -box[1])
-  tracePaths(g, region)
-  g.clip(region.fillRule)
-  g.drawImage(canvas, 0, 0)
-  return { id: region.id, box, png: new Uint8Array(await (await toPng(out)).arrayBuffer()) }
+  out.getContext('2d')!.drawImage(canvas, -box[0], -box[1])
+  return { id: region.id, box, jpeg: new Uint8Array(await (await toJpeg(out)).arrayBuffer()) }
 }
 
 // 傾きを補正した書類の画像を、テンプレートとポリシーに従って暗号化する。
@@ -109,7 +109,7 @@ export async function sealTemplate(
   const masked = newCanvas(card.width, card.height)
   masked.getContext('2d')!.drawImage(card, 0, 0)
   paintRegions(masked, regions)
-  return { maskedImage: await toPng(masked), encryptedData }
+  return { maskedImage: await toJpeg(masked), encryptedData }
 }
 
 // 画像全体を暗号化する

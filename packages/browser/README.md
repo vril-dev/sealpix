@@ -44,17 +44,17 @@ npm run build -w @sealpix/browser
 document.querySelector('sealpix-capture').addEventListener('sealpix-complete', async (event) => {
   const { maskedImage, encryptedData, template } = event.detail
   const form = new FormData()
-  if (maskedImage) form.append('maskedImage', maskedImage, 'masked.png')
+  if (maskedImage) form.append('maskedImage', maskedImage, 'masked.jpg')
   form.append('encryptedData', new Blob([encryptedData], { type: 'application/json' }), 'data.json')
   await fetch('/upload', { method: 'POST', body: form })
 })
 ```
 
-| `event.detail` の項目 | 内容                                                               |
-| --------------------- | ------------------------------------------------------------------ |
-| `maskedImage`         | 塗りつぶした画像（PNG の Blob）。画像全体を暗号化したときは `null` |
-| `encryptedData`       | 暗号化データ（JWE の JSON 文字列）                                 |
-| `template`            | 使ったテンプレートの ID。画像全体を暗号化したときは `null`         |
+| `event.detail` の項目 | 内容                                                                |
+| --------------------- | ------------------------------------------------------------------- |
+| `maskedImage`         | 塗りつぶした画像（JPEG の Blob）。画像全体を暗号化したときは `null` |
+| `encryptedData`       | 暗号化データ（JWE の JSON 文字列）                                  |
+| `template`            | 使ったテンプレートの ID。画像全体を暗号化したときは `null`          |
 
 エラーのときは `sealpix-error` イベントが送られ、`event.detail.message` にメッセージが入ります。
 
@@ -67,7 +67,7 @@ document.querySelector('sealpix-capture').addEventListener('sealpix-complete', a
 <script type="module">
   const viewer = document.querySelector('sealpix-viewer')
   // response は、バックエンド経由で受け取った復号サーバーの view の応答
-  await viewer.show('/images/123/masked.png', response)
+  await viewer.show('/images/123/masked.jpg', response)
 </script>
 ```
 

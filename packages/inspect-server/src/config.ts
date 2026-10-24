@@ -29,7 +29,7 @@ export interface InspectConfig {
   ratePerMinute: number
   templates: Map<string, Template>
   policies: Map<string, Policy>
-  // 受け付ける塗りつぶした画像（PNG）の最大バイト数
+  // 受け付ける塗りつぶした画像（JPEG）の最大バイト数
   maxImageBytes: number
   // 受け付ける画像の幅・高さそれぞれの最大ピクセル数
   maxImageSide: number
