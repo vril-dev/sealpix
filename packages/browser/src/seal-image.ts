@@ -70,7 +70,7 @@ export function paintRegions(canvas: HTMLCanvasElement, regions: RegionShape[]):
   }
 }
 
-// 範囲の外接矩形を切り出した JPEG を作る。JPEG は透明を持てないので、矩形の中で範囲の外にあたる
+// 範囲を囲む四角形を切り出した JPEG を作る。JPEG は透明を持てないので、四角形の中で範囲の外にあたる
 // 画素も含む。その画素は、塗りつぶした画像に写っている部分か、同じ暗号化データに入るほかの範囲の一部。
 export async function cropRegion(
   canvas: HTMLCanvasElement,

@@ -23,8 +23,8 @@ export interface SealedFile {
   tag: string
 }
 
-// 範囲ごとの元画像。box は範囲の外接矩形、jpeg はその矩形を切り出した JPEG 画像。
-// JPEG は透明を持てないので、矩形の中で範囲の外にあたる画素も含む。
+// 範囲ごとの元画像。box は範囲を囲む四角形、jpeg はその四角形を切り出した JPEG 画像。
+// JPEG は透明を持てないので、四角形の中で範囲の外にあたる画素も含む。
 export interface RegionImage {
   id: string
   box: Box
@@ -85,7 +85,7 @@ function joinBytes(a: Uint8Array, b: Uint8Array): Uint8Array<ArrayBuffer> {
   return out
 }
 
-// 範囲ごとの画像が、ヘッダーの範囲と順番・ID・外接矩形まで一致するかを検証する。
+// 範囲ごとの画像が、ヘッダーの範囲と順番・ID・範囲を囲む四角形まで一致するかを検証する。
 function checkImages(images: RegionImage[], header: SealpixHeader): void {
   if (images.length !== header.regions.length) {
     throw new SealpixError('invalid_region', '画像の数が範囲の数と一致しません')
@@ -99,12 +99,12 @@ function checkImages(images: RegionImage[], header: SealpixHeader): void {
     ) {
       throw new SealpixError('invalid_region', '画像が範囲と一致しません')
     }
-    // 復号した画像を表示する前に、画像の幅と高さが外接矩形と一致するかを確認しておく
+    // 復号した画像を表示する前に、画像の幅と高さが範囲を囲む四角形と一致するかを確認しておく
     const size = jpegSize(image.jpeg)
     if (size === null || size[0] !== image.box[2] || size[1] !== image.box[3]) {
       throw new SealpixError(
         'invalid_region',
-        '範囲の画像が JPEG でないか、サイズが外接矩形と一致しません',
+        '範囲の画像が JPEG でないか、サイズが範囲を囲む四角形と一致しません',
       )
     }
   })
