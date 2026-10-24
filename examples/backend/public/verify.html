@@ -48,26 +48,37 @@
         const maskedUrl = item.hasMaskedImage ? `/api/uploads/${item.id}/masked.png` : null
         masked.hidden = maskedUrl === null
         if (maskedUrl) masked.src = maskedUrl
-        const res = await fetch(`/api/uploads/${item.id}/view`, { method: 'POST' })
-        const json = await res.json()
-        if (!res.ok) {
-          status.textContent = `復号できませんでした（${json.error}）`
-          return
+        try {
+          const res = await fetch(`/api/uploads/${item.id}/view`, { method: 'POST' })
+          // 前に置いたプロキシや WAF は、JSON でない応答を返すことがある
+          const json = await res.json().catch(() => ({}))
+          if (!res.ok) {
+            status.textContent = `復号できませんでした（${json.error ?? `HTTP ${res.status}`}）`
+            return
+          }
+          await viewer.show(maskedUrl, json)
+          status.textContent = ''
+        } catch (error) {
+          status.textContent = `復号できませんでした（${error.message}）`
         }
-        await viewer.show(maskedUrl, json)
-        status.textContent = ''
       }
 
-      const { items } = await (await fetch('/api/uploads')).json()
-      if (items.length === 0) list.textContent = 'まだデータがありません。'
-      for (const item of items) {
-        const li = document.createElement('li')
-        const button = document.createElement('button')
-        button.type = 'button'
-        button.textContent = '復号して表示'
-        button.addEventListener('click', () => open(item))
-        li.append(`${item.id}（${item.hasMaskedImage ? 'テンプレート' : '画像全体'}） `, button)
-        list.append(li)
+      try {
+        const res = await fetch('/api/uploads')
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const { items } = await res.json()
+        if (items.length === 0) list.textContent = 'まだデータがありません。'
+        for (const item of items) {
+          const li = document.createElement('li')
+          const button = document.createElement('button')
+          button.type = 'button'
+          button.textContent = '復号して表示'
+          button.addEventListener('click', () => open(item))
+          li.append(`${item.id}（${item.hasMaskedImage ? 'テンプレート' : '画像全体'}） `, button)
+          list.append(li)
+        }
+      } catch (error) {
+        list.textContent = `一覧を読み込めませんでした（${error.message}）`
       }
     </script>
   </body>

@@ -50,17 +50,22 @@
         .addEventListener('sealpix-complete', async (event) => {
           const { maskedImage, encryptedData } = event.detail
           status.textContent = '送信しています…'
-          const body = { encryptedData }
-          if (maskedImage) body.maskedImage = await toBase64(maskedImage)
-          const res = await fetch('/api/uploads', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(body),
-          })
-          const json = await res.json()
-          status.textContent = res.ok
-            ? `保存しました（ID: ${json.id}）`
-            : `保存できませんでした（${json.error}）`
+          try {
+            const body = { encryptedData }
+            if (maskedImage) body.maskedImage = await toBase64(maskedImage)
+            const res = await fetch('/api/uploads', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+            // 前に置いたプロキシや WAF は、JSON でない応答（本文の上限を超えたときの 413 など）を返すことがある
+            const json = await res.json().catch(() => ({}))
+            status.textContent = res.ok
+              ? `保存しました（ID: ${json.id}）`
+              : `保存できませんでした（${json.error ?? `HTTP ${res.status}`}）`
+          } catch (error) {
+            status.textContent = `保存できませんでした（${error.message}）`
+          }
         })
     </script>
   </body>
