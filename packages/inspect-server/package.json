@@ -1,6 +1,6 @@
 {
   "name": "@sealpix/inspect-server",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "license": "BSD-2-Clause",
@@ -8,8 +8,8 @@
     "start": "node src/main.ts"
   },
   "dependencies": {
-    "@sealpix/core": "0.0.0",
-    "@sealpix/server-common": "0.0.0",
+    "@sealpix/core": "0.1.0",
+    "@sealpix/server-common": "0.1.0",
     "jpeg-js": "0.4.4"
   }
 }
